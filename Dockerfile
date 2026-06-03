@@ -1,0 +1,43 @@
+FROM node:20-bookworm-slim AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+
+FROM node:20-bookworm-slim AS builder
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=deps /app/node_modules ./node_modules
+ARG CACHEBUST=1
+COPY . .
+
+# Next.js inlines NEXT_PUBLIC_* at build time — must be available here
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ARG NEXT_PUBLIC_APP_URL
+ARG NEXT_PUBLIC_SITE_URL
+ARG NEXT_PUBLIC_HEYGEN_AVATAR_ID
+ARG NEXT_PUBLIC_HEYGEN_VOICE_ID
+ARG NEXT_PUBLIC_HEYGEN_AVATAR_POOL
+ARG NEXT_PUBLIC_HEYGEN_VOICE_POOL
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
+ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
+ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
+ENV NEXT_PUBLIC_HEYGEN_AVATAR_ID=$NEXT_PUBLIC_HEYGEN_AVATAR_ID
+ENV NEXT_PUBLIC_HEYGEN_VOICE_ID=$NEXT_PUBLIC_HEYGEN_VOICE_ID
+ENV NEXT_PUBLIC_HEYGEN_AVATAR_POOL=$NEXT_PUBLIC_HEYGEN_AVATAR_POOL
+ENV NEXT_PUBLIC_HEYGEN_VOICE_POOL=$NEXT_PUBLIC_HEYGEN_VOICE_POOL
+
+RUN npm run build
+
+FROM node:20-bookworm-slim AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/next.config.js ./next.config.js
+COPY --from=builder /app/public ./public
+EXPOSE 3000
+CMD ["sh", "-c", "npm run start -- --hostname 0.0.0.0 --port ${PORT:-3000}"]

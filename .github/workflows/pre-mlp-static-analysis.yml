@@ -1,0 +1,81 @@
+# Pre-MLP orchestrator — runs the check against all three UHP repos.
+# Calls the reusable pre-mlp-single.yml workflow for each repo.
+#
+# PR gate:   any PR to staging/main -> must pass before merge
+# Schedule:  Thursday 2 pm UTC (10 am Eastern) -> review Friday -> Monday note
+# Manual:    workflow_dispatch for ad-hoc runs
+
+name: Pre-MLP Static Analysis
+
+on:
+  pull_request:
+    branches:
+      - staging
+      - main
+  push:
+    branches:
+      - staging
+      - main
+  schedule:
+    - cron: "0 14 * * 4"   # Thursday 14:00 UTC
+  workflow_dispatch:
+    inputs:
+      report_only:
+        description: "Run in report-only mode (never fail, even on FERPA violations)"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+# Cross-repo checkouts use GH_ORG_TOKEN (not github.token), so only contents: read
+# is needed for the self-checkout. No write access required.
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  # ── UHP-OPS-Agent (self) ──────────────────────────────────────────────────
+  check-ops-agent:
+    name: UHP-OPS-Agent
+    uses: ./.github/workflows/pre-mlp-single.yml
+    with:
+      repo: UHP-OPS-Agent
+      ref: ${{ github.sha }}
+      report_only: ${{ github.event.inputs.report_only == 'true' }}
+
+  # ── uhp-student-app ─────────────────────────────────────────────────────
+  check-student-app:
+    name: uhp-student-app
+    uses: ./.github/workflows/pre-mlp-single.yml
+    with:
+      repo: uhp-student-app
+      ref: staging
+      report_only: ${{ github.event.inputs.report_only == 'true' }}
+    secrets: inherit
+
+  # ── uhp-field-execution ──────────────────────────────────────────────────
+  check-field-execution:
+    name: uhp-field-execution
+    uses: ./.github/workflows/pre-mlp-single.yml
+    with:
+      repo: uhp-field-execution
+      ref: staging
+      report_only: ${{ github.event.inputs.report_only == 'true' }}
+    secrets: inherit
+
+  # ── Generate docs for UHP-OPS-Agent (on staging push only) ───────────────
+  generate-docs-ops-agent:
+    name: Generate Docs (UHP-OPS-Agent)
+    needs: check-ops-agent
+    if: github.event_name == 'push' && github.ref == 'refs/heads/staging'
+    uses: UHP-com/uhp-ai-docs/.github/workflows/generate-docs.yml@main
+    with:
+      source_repo: UHP-com/UHP-OPS-Agent
+      ref: ${{ github.sha }}
+      branch: ${{ github.ref_name }}
+      docs_dir: app-specs/uhp-ops-agent
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      DOCS_PAT: ${{ secrets.DOCS_PAT }}

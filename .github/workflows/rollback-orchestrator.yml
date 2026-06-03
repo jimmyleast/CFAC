@@ -1,0 +1,143 @@
+name: Rollback Orchestrator
+
+# Manual rollback workflow. Rolls back one or all services to their previous
+# Railway deployment using the Railway CLI.
+#
+# IMPORTANT: This workflow requires RAILWAY_TOKEN to be configured as a GitHub
+# Actions secret. Railway currently does not issue personal API tokens from
+# the standard account dashboard. Until a token is available:
+#
+#   Manual rollback via Railway dashboard:
+#     1. Go to https://railway.app
+#     2. Open the "uhp-ops" project
+#     3. Switch to the target environment (e.g. "Staging - New")
+#     4. Click the service you want to roll back
+#     5. Open the "Deployments" tab
+#     6. Find the most recent successful deployment before the bad one
+#     7. Click the three-dot menu on that deployment and choose "Redeploy"
+#     8. Repeat for each affected service
+#
+# REQUIRED GitHub Actions secrets:
+#   RAILWAY_TOKEN_STAGING  Railway API token for staging rollbacks
+#   RAILWAY_TOKEN_PROD     Railway API token for production rollbacks
+
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: Which service to roll back
+        required: true
+        type: choice
+        options:
+          - ops-agent
+          - field-execution
+          - student-app
+          - all
+      environment:
+        description: Target environment
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+      confirm:
+        description: "Confirm rollback (must be true to proceed)"
+        required: true
+        type: boolean
+        default: false
+
+# Shares the same concurrency group as deploy-orchestrator so a rollback to staging
+# queues behind any running deploy to staging, and vice versa.
+concurrency:
+  group: deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+# No code checkout and no GitHub API calls — no permissions needed.
+permissions:
+  contents: none
+
+env:
+  RAILWAY_PROJECT_ID: e1c3ea55-5867-4e18-9040-bee49b755394
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Validate: enforce the safety confirmation and log the rollback intent.
+  # ---------------------------------------------------------------------------
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Safety gate
+        run: |
+          if [[ "${{ inputs.confirm }}" != "true" ]]; then
+            echo "::error::Set 'confirm' to true to proceed with rollback."
+            exit 1
+          fi
+
+      - name: Log rollback intent
+        run: |
+          echo "Rollback confirmed."
+          echo "Service:     ${{ inputs.service }}"
+          echo "Environment: ${{ inputs.environment }}"
+          echo "Triggered by: ${{ github.actor }}"
+
+  # ---------------------------------------------------------------------------
+  # Rollback: invoke railway rollback for each selected service.
+  # ---------------------------------------------------------------------------
+  rollback:
+    name: Rollback
+    needs: [validate]
+    runs-on: ubuntu-latest
+    env:
+      RAILWAY_TOKEN: ${{ inputs.environment == 'production' && secrets.RAILWAY_TOKEN_PROD || secrets.RAILWAY_TOKEN_STAGING }}
+    steps:
+      - name: Validate Railway token
+        run: |
+          if [[ "${{ inputs.environment }}" == "production" && -z "${{ secrets.RAILWAY_TOKEN_PROD }}" ]]; then
+            echo "::error::RAILWAY_TOKEN_PROD is not configured. Add it to GitHub Actions secrets before rolling back production."
+            exit 1
+          fi
+          if [[ "${{ inputs.environment }}" != "production" && -z "${{ secrets.RAILWAY_TOKEN_STAGING }}" ]]; then
+            echo "::error::RAILWAY_TOKEN_STAGING is not configured. Add it to GitHub Actions secrets before rolling back staging."
+            exit 1
+          fi
+
+      - name: Resolve Railway target environment
+        run: |
+          if [[ "${{ inputs.environment }}" == "production" ]]; then
+            echo "RAILWAY_ENV_NAME=production" >> "$GITHUB_ENV"
+          else
+            echo "RAILWAY_ENV_NAME=Staging - New" >> "$GITHUB_ENV"
+          fi
+
+      - name: Show Railway target environment
+        run: |
+          echo "Rolling back in Railway environment: ${RAILWAY_ENV_NAME}"
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Roll back OPS Agent
+        if: ${{ inputs.service == 'ops-agent' || inputs.service == 'all' }}
+        run: |
+          railway rollback \
+            --service uhp-ops-agent \
+            --environment "${RAILWAY_ENV_NAME}" \
+            --project "$RAILWAY_PROJECT_ID"
+
+      - name: Roll back Field Execution
+        if: ${{ inputs.service == 'field-execution' || inputs.service == 'all' }}
+        run: |
+          railway rollback \
+            --service uhp-field-execution-app \
+            --environment "${RAILWAY_ENV_NAME}" \
+            --project "$RAILWAY_PROJECT_ID"
+
+      - name: Roll back Student App
+        if: ${{ inputs.service == 'student-app' || inputs.service == 'all' }}
+        run: |
+          railway rollback \
+            --service uhp-student-app \
+            --environment "${RAILWAY_ENV_NAME}" \
+            --project "$RAILWAY_PROJECT_ID"

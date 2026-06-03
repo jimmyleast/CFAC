@@ -1,0 +1,292 @@
+name: Deploy Orchestrator
+
+# Triggered manually via workflow_dispatch for either environment.
+#
+# REQUIRED GitHub Actions secrets (Settings > Secrets and variables > Actions):
+#   SUPABASE_DB_URL_UHP_STAGING        Full PostgreSQL connection URL for the shared staging DB
+#   SUPABASE_POOLER_DB_URL_UHP_STAGING Optional but recommended, exact Supabase pooler URL (IPv4)
+#   GH_ORG_TOKEN                       Fine-grained PAT (UHP-com org) with Contents: Read on
+#                                      uhp-student-app, uhp-field-execution, and UHP-OPS-Agent.
+#                                      Store as a UHP-com org-level secret.
+#   RAILWAY_TOKEN_STAGING              Personal Railway API token (account settings > tokens) -- NOT a project token
+#   RAILWAY_TOKEN_PROD                 (add when production environment is provisioned)
+#
+# FIRST RUN: Each migration step passes --auto-baseline, so if the tracking table
+# has no records for a repo it will mark all existing files as applied (no SQL re-run).
+# This means the first workflow dispatch is safe to run on an existing DB without
+# any manual setup step.
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+      enforce_pre_mlp_gate:
+        description: Enforce Pre-MLP gate for manual dispatch (checks latest completed Pre-MLP run on target branch)
+        required: true
+        default: false
+        type: boolean
+
+# Prevent concurrent deploys to the same environment. New runs queue rather than
+# cancel so an in-flight deploy is never interrupted mid-migration.
+concurrency:
+  group: deploy-${{ github.event_name == 'workflow_run' && 'staging' || inputs.environment }}
+  cancel-in-progress: false
+
+# Minimum permissions required. The gate job reads workflow run data via github.token,
+# so actions: read is required in addition to the standard contents: read for checkout.
+permissions:
+  contents: read
+  actions: read
+
+env:
+  SUPABASE_DB_URL: ${{ secrets.SUPABASE_POOLER_DB_URL_UHP_STAGING || secrets.SUPABASE_DB_URL_UHP_STAGING }}
+  NODE_VERSION: "20"
+
+jobs:
+  gate:
+    name: Gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check pre-MLP result
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_run" ]]; then
+            CONCLUSION="${{ github.event.workflow_run.conclusion }}"
+            BRANCH="${{ github.event.workflow_run.head_branch }}"
+            echo "Pre-MLP conclusion: $CONCLUSION  (branch: $BRANCH)"
+            if [[ "$CONCLUSION" != "success" ]]; then
+              echo "::error::Pre-MLP did not pass (conclusion: $CONCLUSION). Deploy blocked."
+              exit 1
+            fi
+          else
+            echo "Manual dispatch. Environment: ${{ inputs.environment }}"
+
+            if [[ "${{ inputs.enforce_pre_mlp_gate }}" == "true" ]]; then
+              TARGET_REF="${{ inputs.environment == 'production' && 'main' || 'staging' }}"
+              echo "Enforcing Pre-MLP gate for branch: ${TARGET_REF}"
+
+              API_URL="https://api.github.com/repos/${{ github.repository }}/actions/workflows/pre-mlp.yml/runs?branch=${TARGET_REF}&status=completed&per_page=1"
+              RESPONSE=$(curl -fsSL \
+                -H "Authorization: Bearer ${GH_TOKEN}" \
+                -H "Accept: application/vnd.github+json" \
+                "${API_URL}")
+
+              PRE_MLP_CONCLUSION=$(printf '%s' "${RESPONSE}" | python3 -c 'import json,sys; d=json.load(sys.stdin); r=d.get("workflow_runs", []); print(r[0].get("conclusion", "") if r else "")')
+              PRE_MLP_URL=$(printf '%s' "${RESPONSE}" | python3 -c 'import json,sys; d=json.load(sys.stdin); r=d.get("workflow_runs", []); print(r[0].get("html_url", "") if r else "")')
+
+              if [[ -z "${PRE_MLP_CONCLUSION}" ]]; then
+                echo "::error::No completed Pre-MLP run found on branch '${TARGET_REF}'. Run Pre-MLP Static Analysis first or disable enforce_pre_mlp_gate for this dispatch."
+                exit 1
+              fi
+
+              echo "Latest Pre-MLP run on ${TARGET_REF}: ${PRE_MLP_CONCLUSION}"
+              if [[ -n "${PRE_MLP_URL}" ]]; then
+                echo "Pre-MLP run URL: ${PRE_MLP_URL}"
+              fi
+
+              if [[ "${PRE_MLP_CONCLUSION}" != "success" ]]; then
+                echo "::error::Latest Pre-MLP run is '${PRE_MLP_CONCLUSION}', deploy blocked."
+                exit 1
+              fi
+            else
+              echo "Pre-MLP gate bypassed by dispatch input (enforce_pre_mlp_gate=false)."
+            fi
+          fi
+          echo "Gate cleared."
+
+      - name: Validate cross-repo token access
+        env:
+          GH_ORG_TOKEN: ${{ secrets.GH_ORG_TOKEN }}
+          TARGET_REF: ${{ inputs.environment == 'production' && 'main' || 'staging' }}
+        run: |
+          if [[ -z "$GH_ORG_TOKEN" ]]; then
+            echo "::error::GH_ORG_TOKEN is missing. Add a PAT with read access to UHP-com/uhp-field-execution and UHP-com/uhp-student-app."
+            exit 1
+          fi
+
+          check_repo_branch() {
+            local repo="$1"
+            local ref="$2"
+            local status
+
+            status=$(curl -s -o /dev/null -w "%{http_code}" \
+              -H "Authorization: Bearer $GH_ORG_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/UHP-com/${repo}/branches/${ref}")
+
+            if [[ "$status" != "200" ]]; then
+              echo "::error::GH_ORG_TOKEN cannot read UHP-com/${repo} branch '${ref}' (HTTP ${status}). Grant repo read access and SSO authorization, then update GH_ORG_TOKEN."
+              exit 1
+            fi
+          }
+
+          check_repo_branch "uhp-field-execution" "$TARGET_REF"
+          check_repo_branch "uhp-student-app" "$TARGET_REF"
+          echo "Cross-repo token access OK."
+
+  # Migrations run as sequential steps to avoid DB race conditions.
+  migrate:
+    name: Migrate DB
+    needs: [gate]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.environment == 'production' && 'main' || 'staging' }}
+
+      - uses: actions/checkout@v4
+        with:
+          repository: UHP-com/uhp-field-execution
+          token: ${{ secrets.GH_ORG_TOKEN }}
+          ref: ${{ inputs.environment == 'production' && 'main' || 'staging' }}
+          path: _repos/field
+
+      - uses: actions/checkout@v4
+        with:
+          repository: UHP-com/uhp-student-app
+          token: ${{ secrets.GH_ORG_TOKEN }}
+          ref: ${{ inputs.environment == 'production' && 'main' || 'staging' }}
+          path: _repos/student
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Migrate OPS Agent
+        run: node scripts/check-pending-migrations.mjs --dir supabase/migrations --repo ops-agent --apply --auto-baseline
+
+      - name: Migrate Field Execution
+        run: node scripts/check-pending-migrations.mjs --dir _repos/field/supabase/migrations --repo field-execution --apply --auto-baseline
+
+      - name: Migrate Student App
+        run: node scripts/check-pending-migrations.mjs --dir _repos/student/supabase/migrations --repo student-app --apply --auto-baseline
+
+  deploy:
+    name: Deploy
+    needs: [migrate]
+    runs-on: ubuntu-latest
+    env:
+      RAILWAY_TOKEN: ${{ inputs.environment == 'production' && secrets.RAILWAY_TOKEN_PROD || secrets.RAILWAY_TOKEN_STAGING }}
+      RAILWAY_PROJECT_ID: e1c3ea55-5867-4e18-9040-bee49b755394
+    steps:
+      - name: Validate Railway token
+        run: |
+          if [[ "${{ inputs.environment }}" == "production" && -z "${{ secrets.RAILWAY_TOKEN_PROD }}" ]]; then
+            echo "::error::RAILWAY_TOKEN_PROD is not configured. Add it to GitHub Actions secrets before deploying to production."
+            exit 1
+          fi
+
+      - name: Resolve Railway target environment
+        run: |
+          if [[ "${{ inputs.environment }}" == "production" ]]; then
+            echo "RAILWAY_ENV_NAME=production" >> "$GITHUB_ENV"
+          else
+            echo "RAILWAY_ENV_NAME=Staging - New" >> "$GITHUB_ENV"
+          fi
+
+      - name: Show Railway target environment
+        run: |
+          echo "Deploying to Railway environment: ${RAILWAY_ENV_NAME}"
+
+      - name: Checkout UHP-OPS-Agent
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.environment == 'production' && 'main' || 'staging' }}
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy OPS Agent
+        run: railway up --service uhp-ops-agent --environment "${RAILWAY_ENV_NAME}" --ci
+
+      - name: Checkout uhp-field-execution
+        uses: actions/checkout@v4
+        with:
+          repository: UHP-com/uhp-field-execution
+          token: ${{ secrets.GH_ORG_TOKEN }}
+          ref: ${{ inputs.environment == 'production' && 'main' || 'staging' }}
+          path: _repos/field
+
+      - name: Deploy Field Execution
+        working-directory: _repos/field
+        run: railway up --service uhp-field-execution-app --environment "${RAILWAY_ENV_NAME}" --ci
+
+      - name: Checkout uhp-student-app
+        uses: actions/checkout@v4
+        with:
+          repository: UHP-com/uhp-student-app
+          token: ${{ secrets.GH_ORG_TOKEN }}
+          ref: ${{ inputs.environment == 'production' && 'main' || 'staging' }}
+          path: _repos/student
+
+      - name: Deploy Student App
+        working-directory: _repos/student
+        run: railway up --service uhp-student-app --environment "${RAILWAY_ENV_NAME}" --ci
+
+  health-check:
+    name: Health Check
+    needs: [deploy]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Production skip
+        if: ${{ inputs.environment == 'production' }}
+        run: echo "Health check not yet configured for production. Verify manually."
+
+      - name: Wait for builds
+        if: ${{ inputs.environment != 'production' }}
+        run: sleep 20
+
+      - name: Health checks
+        if: ${{ inputs.environment != 'production' }}
+        run: |
+          check() {
+            local name="$1" url="$2"
+            for i in $(seq 1 10); do
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$url")
+              echo "$name attempt $i/10: HTTP $STATUS"
+              [[ "$STATUS" =~ ^(200|301|302|307|308)$ ]] && echo "$name healthy." && return 0
+              [[ "$i" -lt 10 ]] && sleep 10
+            done
+            echo "::error::$name health check timed out."
+            return 1
+          }
+          check "OPS Agent"       "https://uhp-ops-agent-staging-new.up.railway.app/api/health"
+          check "Field Execution" "https://uhp-field-execution-app-staging-new.up.railway.app/"
+          check "Student App"     "https://uhp-student-app-staging-new.up.railway.app/"
+
+  # Auto-rollback fires only when health-check itself fails.
+  auto-rollback:
+    name: Auto Rollback
+    needs: [health-check]
+    if: needs.health-check.result == 'failure'
+    runs-on: ubuntu-latest
+    env:
+      RAILWAY_TOKEN: ${{ inputs.environment == 'production' && secrets.RAILWAY_TOKEN_PROD || secrets.RAILWAY_TOKEN_STAGING }}
+      RAILWAY_PROJECT_ID: e1c3ea55-5867-4e18-9040-bee49b755394
+    steps:
+      - name: Resolve Railway environment
+        run: |
+          if [[ "${{ inputs.environment }}" == "production" ]]; then
+            echo "RAILWAY_ENV_NAME=production" >> "$GITHUB_ENV"
+          else
+            echo "RAILWAY_ENV_NAME=Staging - New" >> "$GITHUB_ENV"
+          fi
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Roll back all services
+        run: |
+          echo "Health check failed. Rolling back all services in ${RAILWAY_ENV_NAME}..."
+          railway rollback --service uhp-ops-agent --environment "${RAILWAY_ENV_NAME}" --project "$RAILWAY_PROJECT_ID"
+          railway rollback --service uhp-field-execution-app --environment "${RAILWAY_ENV_NAME}" --project "$RAILWAY_PROJECT_ID"
+          railway rollback --service uhp-student-app --environment "${RAILWAY_ENV_NAME}" --project "$RAILWAY_PROJECT_ID"
+          echo "Auto-rollback complete."
