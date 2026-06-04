@@ -8,7 +8,7 @@ export default function LandingPage() {
   const router = useRouter()
   const [checking, setChecking] = useState(true)
   const [messages, setMessages] = useState([
-    { role: 'morgan', content: 'Welcome to UHP — Unlocking Human Potential. I\'m Morgan, your AI guide. Whether you\'re exploring our programs, want to learn about campus life, or need help with anything else — just ask.' },
+    { role: 'morgan', content: 'Welcome to CFAC — the Children & Family Advocacy Center. I\'m your AI guide. Ask me anything about our programs, services, or how we can help.' },
   ])
   const [loading, setLoading] = useState(false)
   const [text, setText] = useState('')
@@ -81,9 +81,8 @@ export default function LandingPage() {
       {/* Header */}
       <header style={{ padding: '16px 24px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="https://uhp.com/wp-content/uploads/2025/07/logo.svg" alt="UHP" style={{ height: 28 }} />
-          <span style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#8A8680', fontWeight: 600 }}>Ops Agent</span>
+          <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 22, letterSpacing: '0.06em', color: '#C9A84C' }}>CFAC</span>
+          <span style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#8A8680', fontWeight: 600 }}>Data &amp; Operations</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {installPrompt && !installed && (
@@ -164,7 +163,7 @@ export default function LandingPage() {
             value={text}
             onChange={e => setText(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
-            placeholder="Ask Morgan anything about UHP..."
+            placeholder="Ask anything about CFAC..."
             rows={1}
             style={{
               flex: 1, minHeight: 44, resize: 'none', fontSize: 15, padding: '10px 14px',

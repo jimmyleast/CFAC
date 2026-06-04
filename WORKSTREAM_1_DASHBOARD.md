@@ -16,8 +16,8 @@ Legend: **[CORE]** = needed for the next-weekend demo · **[STRETCH]** = nice-to
 
 ---
 
-## Phase A — Import the platform base
-- [ ] **[CORE]** Copy the UHP tree into CFAC, preserving CFAC's `.git` and skipping junk:
+## Phase A — Import the platform base  ✅ DONE (commit 758069c)
+- [x] **[CORE]** Copy the UHP tree into CFAC, preserving CFAC's `.git` and skipping junk:
   ```powershell
   robocopy "C:\Users\jhhea\.vscode\UHP-OPS-Agent" "C:\Users\jhhea\.vscode\CFAC" /E `
     /XD .git node_modules .next .understand-anything `
@@ -27,8 +27,8 @@ Legend: **[CORE]** = needed for the next-weekend demo · **[STRETCH]** = nice-to
 - [ ] **[CORE]** `npm install`, then `npm run dev` to confirm it boots. (Build may warn until env is set in Phase C — that's fine.)
 - [ ] **[CORE]** First commit to the CFAC repo = "Import UHP-OPS-Agent platform base".
 
-## Phase B — Strip to the shell
-- [ ] **[CORE]** Delete UHP domain verticals (pages **and** their API routes): `app/admin/{kitchen,rooms,scheduling,admissions,badges,trades,programs,cohorts,onboarding,intake,graduation,placement,alumni,...}` and matching `app/api/*`.
+## Phase B — Strip to the shell  ✅ DONE (commit 758069c)
+- [x] **[CORE]** Delete UHP domain verticals (pages **and** their API routes): `app/admin/{kitchen,rooms,scheduling,admissions,badges,trades,programs,cohorts,onboarding,intake,graduation,placement,alumni,...}` and matching `app/api/*`.
 - [ ] **[CORE]** Delete UHP-only `lib/*`: `hostfully`, `bunk-optimizer`, `hubspot*`, `pre-arrival-sms`, `programs`, `graduation`, `badge-vendor`, `program-imports`, etc. Keep: `admin.ts`, `auth/*`, `supabase/*`, `nav-config.ts`, `pagination.ts`, `anthropic/*`, `telemetry/*`, `morgan/schemaGuard.ts`, `email*`, `google-sheets.ts`, `notifications`.
 - [ ] **[CORE]** Remove HeyGen: delete `components/agent/MorganAvatar.tsx` + its two usages (`app/process/[id]/page.tsx`, `app/requests/page.tsx`), delete `app/api/morgan/token/route.ts`, drop deps `@heygen/streaming-avatar` + `livekit-client`, remove `HEYGEN_*` env.
 - [ ] **[CORE]** Remove external memory: delete `lib/operative/memory.ts` and all `OPERATIVE_*` env (strict data-handling rule).

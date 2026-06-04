@@ -215,14 +215,14 @@ export default function ExecutiveDashboardPage() {
             fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 36,
             letterSpacing: '0.02em', textTransform: 'uppercase',
             marginBottom: 6, color: '#F0EDE6',
-          }}>CEO Operating Dashboard</h1>
+          }}>Executive Dashboard</h1>
           <p style={{ fontSize: 13, color: '#8A8680', maxWidth: 820, lineHeight: 1.5 }}>
-            Revenue, OpEx, CapEx, and cash pressure in one view for Matt E. Live UHP operating data is blended with the May 29 finance model, tech transformation plan, and consolidated grounds equipment needs.
+            Organizational pulse check across programs, services, reach, and financial health in one view for CFAC leadership.
           </p>
         </div>
         <div style={guardrailBadge}>
-          <span style={{ color: '#7DD3C7', fontWeight: 700 }}>CEO source pack</span>
-          <span style={{ color: '#A8A29A' }}>As of {data.dataSources.sourcePlan?.asOf || data.ceo.sourceDate}. HubSpot remains read-only.</span>
+          <span style={{ color: '#7DD3C7', fontWeight: 700 }}>Source pack</span>
+          <span style={{ color: '#A8A29A' }}>As of {data.dataSources.sourcePlan?.asOf || data.ceo.sourceDate}.</span>
         </div>
       </div>
 

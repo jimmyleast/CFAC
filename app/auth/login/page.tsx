@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
-const ALLOWED_SIGNUP_DOMAINS = ['uhp.com', 'contentforgeai.io']
+const ALLOWED_SIGNUP_DOMAINS = ['cfacbentonco.com']
 
 const inputStyle: React.CSSProperties = {
   width: '100%', background: '#1C1C20',
@@ -227,22 +227,21 @@ export default function LoginPage() {
         position: 'relative',
       }}>
         <div style={{ textAlign: 'center', maxWidth: 420 }}>
-          <div style={{ marginBottom: 28 }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="https://uhp.com/wp-content/uploads/2025/07/logo.svg" alt="UHP" style={{ height: '40px', width: 'auto', display: 'block', margin: '0 auto' }} />
+          <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, letterSpacing: '0.06em', fontSize: 56, color: '#C9A84C', marginBottom: 4, lineHeight: 1 }}>
+            CFAC
           </div>
-          <div style={{ fontSize: 11, letterSpacing: '.2em', textTransform: 'uppercase', color: '#555250', marginBottom: 6, fontWeight: 600 }}>UHP</div>
-          <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, letterSpacing: '0.02em', fontSize: 32, color: '#C9A84C', marginBottom: 28, lineHeight: 1.1 }}>
-            Ops Agent
+          <div style={{ fontSize: 11, letterSpacing: '.2em', textTransform: 'uppercase', color: '#555250', marginBottom: 28, fontWeight: 600 }}>Children &amp; Family Advocacy Center</div>
+          <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, letterSpacing: '0.02em', fontSize: 28, color: '#F0EDE6', marginBottom: 24, lineHeight: 1.1 }}>
+            Data &amp; Operations
           </div>
           <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase', color: '#F0EDE6', lineHeight: 1.8, marginBottom: 20 }}>
-            Design Processes.<br />Define Systems.<br />Drive Operations.
+            Track Data.<br />Measure Impact.<br />Serve Families.
           </div>
           <div style={{ width: 40, height: 2, background: '#C9A84C', margin: '0 auto 20px', borderRadius: 1 }} />
-          <p style={{ color: '#555250', fontSize: 15, lineHeight: 1.6 }}>AI-powered process design for the UHP operations team.</p>
+          <p style={{ color: '#555250', fontSize: 15, lineHeight: 1.6 }}>Internal operations &amp; data platform for CFAC staff.</p>
         </div>
         <div style={{ position: 'absolute', bottom: 28, fontSize: 11, color: '#2A2A2C', letterSpacing: '.06em', textTransform: 'uppercase' }}>
-          United Health Partners · Internal Tool
+          Children &amp; Family Advocacy Center · Internal Tool
         </div>
       </div>
 
@@ -287,7 +286,7 @@ export default function LoginPage() {
                 <input
                   id="si-email"
                   type="email" value={email} onChange={e => setEmail(e.target.value)}
-                  placeholder="you@uhp.com" required disabled={loading}
+                  placeholder="you@cfacbentonco.com" required disabled={loading}
                   style={inputStyle}
                   onFocus={e => { e.target.style.borderColor = '#C9A84C' }}
                   onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.12)' }}
@@ -329,7 +328,7 @@ export default function LoginPage() {
                 <input
                   id="su-email"
                   type="email" value={email} onChange={e => setEmail(e.target.value)}
-                  placeholder="you@uhp.com" required disabled={loading}
+                  placeholder="you@cfacbentonco.com" required disabled={loading}
                   style={inputStyle}
                   onFocus={e => { e.target.style.borderColor = '#C9A84C' }}
                   onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.12)' }}
@@ -356,7 +355,7 @@ export default function LoginPage() {
                 {loading ? 'Creating account...' : 'Create Account'}
               </button>
               <p style={{ color: '#454340', fontSize: 12, textAlign: 'center', margin: 0 }}>
-                Restricted to @uhp.com and @contentforgeai.io addresses.
+                Restricted to @cfacbentonco.com addresses.
               </p>
             </form>
           )}

@@ -117,8 +117,8 @@ export default function PWAInstallHelper() {
 
   if (mode === 'ios-safari') {
     return (
-      <aside className="pwa-install-helper" aria-label="Install UHP OPS on iPhone">
-        <h2>Add UHP OPS to iPhone</h2>
+      <aside className="pwa-install-helper" aria-label="Install CFAC on iPhone">
+        <h2>Add CFAC to iPhone</h2>
         <p>Tap Share, then Add to Home Screen. iPhone Safari controls installation, so there is no install button here.</p>
         <div className="pwa-install-actions">
           <button className="pwa-install-dismiss" onClick={dismiss}>Not now</button>
@@ -129,8 +129,8 @@ export default function PWAInstallHelper() {
 
   if (mode === 'ios-chrome') {
     return (
-      <aside className="pwa-install-helper" aria-label="Open UHP OPS in Safari">
-        <h2>Use Safari to Add UHP OPS</h2>
+      <aside className="pwa-install-helper" aria-label="Open CFAC in Safari">
+        <h2>Use Safari to Add CFAC</h2>
         <p>Chrome on iPhone cannot install web apps. Copy this link, open it in Safari, then tap Share and Add to Home Screen.</p>
         <div className="pwa-install-actions">
           <button className="pwa-install-dismiss" onClick={dismiss}>Got it</button>
@@ -142,9 +142,9 @@ export default function PWAInstallHelper() {
   if (!prompt) return null
 
   return (
-    <aside className="pwa-install-helper" aria-label="Install UHP OPS">
-      <h2>Install UHP OPS</h2>
-      <p>Add UHP OPS to this device for a standalone staff app experience.</p>
+    <aside className="pwa-install-helper" aria-label="Install CFAC">
+      <h2>Install CFAC</h2>
+      <p>Add CFAC to this device for a standalone staff app experience.</p>
       <div className="pwa-install-actions">
         <button className="pwa-install-dismiss" onClick={dismiss}>Not now</button>
         <button className="pwa-install-button" onClick={install}>Install</button>

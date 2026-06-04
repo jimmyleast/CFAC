@@ -1,7 +1,7 @@
 {
-  "name": "UHP OPS",
-  "short_name": "UHP OPS",
-  "description": "Operations platform for UHP staff",
+  "name": "CFAC",
+  "short_name": "CFAC",
+  "description": "Operations & data platform for CFAC staff",
   "start_url": "/home",
   "scope": "/",
   "display": "standalone",

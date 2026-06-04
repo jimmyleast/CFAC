@@ -28,13 +28,13 @@ const mono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'UHP OPS',
-  description: 'AI-powered operations platform for UHP staff',
+  title: 'CFAC',
+  description: 'Operations & data platform for CFAC staff',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'UHP OPS',
+    title: 'CFAC',
   },
   icons: {
     apple: '/icons/icon-192.png',
@@ -64,7 +64,7 @@ export default function RootLayout({
         <meta name="theme-color" content="#0A0A0A" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="UHP OPS" />
+        <meta name="apple-mobile-web-app-title" content="CFAC" />
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
       </head>
       <body>

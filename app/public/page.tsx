@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 export default function PublicMorgan() {
   const [messages, setMessages] = useState([{
     role: 'morgan',
-    content: 'Welcome to UHP. What brings you here today?',
+    content: 'Welcome to CFAC. What brings you here today?',
   }])
   const [loading, setLoading] = useState(false)
   const [text, setText] = useState('')
@@ -39,7 +39,7 @@ export default function PublicMorgan() {
       <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--success)', display: 'inline-block' }} />
-          <span style={{ fontFamily: 'var(--font-heading)', fontSize: 14, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Morgan · UHP</span>
+          <span style={{ fontFamily: 'var(--font-heading)', fontSize: 14, letterSpacing: '0.06em', textTransform: 'uppercase' }}>CFAC Assistant</span>
         </div>
         <nav style={{ display: 'flex', gap: 16 }}>
           <a href="/auth/login" style={{ color: 'var(--text-tertiary)', fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', textDecoration: 'none' }}>Sign in</a>
@@ -82,7 +82,7 @@ export default function PublicMorgan() {
             value={text}
             onChange={e => setText(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
-            placeholder="Ask me anything about UHP..."
+            placeholder="Ask me anything about CFAC..."
             rows={1}
             className="textarea-field"
             style={{ flex: 1, minHeight: 44, resize: 'none', fontSize: 15 }}

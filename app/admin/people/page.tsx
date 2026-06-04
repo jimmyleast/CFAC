@@ -602,7 +602,7 @@ function InviteModal({ squads, teams, onClose, onSubmit }: {
     <ModalShell onClose={onClose}>
       <ModalBody>
         <ModalHeader title="Invite someone" sub="They'll get an email with a magic link to sign in. No password required." />
-        <ModalField label="Email"><ModalInput type="email" placeholder="colleague@uhp.com" value={email} onChange={setEmail} /></ModalField>
+        <ModalField label="Email"><ModalInput type="email" placeholder="colleague@cfacbentonco.com" value={email} onChange={setEmail} /></ModalField>
         <ModalField label="Team (optional)">
           <ModalSelect value={teamId} onChange={setTeamId}>
             <option value="">No team yet</option>

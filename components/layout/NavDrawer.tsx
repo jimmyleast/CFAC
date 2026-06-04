@@ -142,13 +142,9 @@ export default function NavDrawer({ sections, teamSlug, teamName, userName, user
       {/* Header: logo + team chip */}
       <div style={{ padding: '20px 20px 16px', borderBottom: `1px solid ${LINE}`, flexShrink: 0, background: BG, position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="https://uhp.com/wp-content/uploads/2025/07/logo.svg"
-            alt="UHP"
-            style={{ height: 24, width: 'auto', display: 'block' }}
-            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-          />
+          <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 22, letterSpacing: '0.06em', color: '#C9A84C', display: 'block' }}>
+            CFAC
+          </span>
           <button
             type="button"
             onClick={() => onDrawerClose?.()}
