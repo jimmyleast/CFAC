@@ -1,5 +1,5 @@
 /**
- * Team context helper — every tool and Morgan endpoint calls this
+ * Team context helper — every tool and Hope endpoint calls this
  * to understand who the user is and what they should see.
  */
 

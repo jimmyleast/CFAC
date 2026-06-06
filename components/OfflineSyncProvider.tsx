@@ -121,7 +121,7 @@ function shouldQueue(input: RequestInfo | URL, init?: RequestInit) {
   const url = getUrl(input)
   if (!url || url.origin !== window.location.origin || !url.pathname.startsWith('/api/')) return false
   if (url.pathname.startsWith('/api/auth/')) return false
-  if (url.pathname === '/api/morgan/unified' || url.pathname === '/api/morgan/chat') return false
+  if (url.pathname === '/api/hope/unified' || url.pathname === '/api/hope/chat') return false
 
   const headers = new Headers(init?.headers || (input instanceof Request ? input.headers : undefined))
   if (headers.has(REPLAY_HEADER)) return false

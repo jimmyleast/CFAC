@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 async function fetchMemoryStats(): Promise<Record<string, number>> {
   const coreUrl = process.env.OPERATIVE_CORE_URL
   const coreKey = process.env.OPERATIVE_CORE_KEY
-  const deploymentId = process.env.OPERATIVE_DEPLOYMENT_ID || 'uhp-morgan'
+  const deploymentId = process.env.OPERATIVE_DEPLOYMENT_ID || 'uhp-hope'
 
   if (!coreUrl || !coreKey) {
     console.warn('[dev/memory-stats] missing OPERATIVE_CORE_URL or OPERATIVE_CORE_KEY')

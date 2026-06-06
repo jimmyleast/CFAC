@@ -19,7 +19,7 @@ function asStringArray(value: unknown): string[] {
   return value.map((item) => asString(item)).filter(Boolean)
 }
 
-export function coerceMorganSopData(input: unknown): GuardResult {
+export function coerceHopeSopData(input: unknown): GuardResult {
   if (!input || typeof input !== 'object') {
     return {
       data: null,

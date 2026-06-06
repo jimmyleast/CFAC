@@ -5,7 +5,7 @@ import * as Icons from 'lucide-react'
 
 type SpeechRecognitionCtor = new () => any
 
-interface MorganVoiceButtonProps {
+interface HopeVoiceButtonProps {
   disabled?: boolean
   onTranscript: (transcript: string) => void
   onListeningChange?: (listening: boolean) => void
@@ -19,13 +19,13 @@ const BG3 = '#1A1A1A'
 const LINE2 = '#3A3A3A'
 const TEXT2 = '#8A8680'
 
-export default function MorganVoiceButton({
+export default function HopeVoiceButton({
   disabled = false,
   onTranscript,
   onListeningChange,
   size = 40,
   label = 'Voice input',
-}: MorganVoiceButtonProps) {
+}: HopeVoiceButtonProps) {
   const [supported, setSupported] = useState(false)
   const [listening, setListening] = useState(false)
   const recognitionRef = useRef<any>(null)
@@ -113,7 +113,7 @@ export default function MorganVoiceButton({
   return (
     <>
       <style>{`
-        @keyframes morganVoicePulse {
+        @keyframes hopeVoicePulse {
           0%   { opacity: 0.55; transform: scale(1); }
           100% { opacity: 0;    transform: scale(1.45); }
         }
@@ -150,7 +150,7 @@ export default function MorganVoiceButton({
               inset: -4,
               border: `1px solid ${TEAL}`,
               pointerEvents: 'none',
-              animation: 'morganVoicePulse 1.6s ease-out infinite',
+              animation: 'hopeVoicePulse 1.6s ease-out infinite',
             }}
           />
         )}

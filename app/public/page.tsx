@@ -1,9 +1,9 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
 
-export default function PublicMorgan() {
+export default function PublicHope() {
   const [messages, setMessages] = useState([{
-    role: 'morgan',
+    role: 'hope',
     content: 'Welcome to CFAC. What brings you here today?',
   }])
   const [loading, setLoading] = useState(false)
@@ -20,15 +20,15 @@ export default function PublicMorgan() {
     setLoading(true)
 
     try {
-      const res = await fetch('/api/morgan/public', {
+      const res = await fetch('/api/hope/public', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text, history: messages }),
       })
       const data = await res.json()
-      setMessages(prev => [...prev, { role: 'morgan', content: data.message }])
+      setMessages(prev => [...prev, { role: 'hope', content: data.message }])
     } catch {
-      setMessages(prev => [...prev, { role: 'morgan', content: 'I had trouble with that. Try again?' }])
+      setMessages(prev => [...prev, { role: 'hope', content: 'I had trouble with that. Try again?' }])
     }
     setLoading(false)
   }
@@ -50,7 +50,7 @@ export default function PublicMorgan() {
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px', maxWidth: 640, width: '100%', margin: '0 auto' }}>
         {messages.map((m, i) => (
           <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start', marginBottom: 12 }}>
-            {m.role === 'morgan' && (
+            {m.role === 'hope' && (
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--teal)', marginTop: 8, marginRight: 8, flexShrink: 0 }} />
             )}
             <div style={{
@@ -69,7 +69,7 @@ export default function PublicMorgan() {
         {loading && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-tertiary)', fontSize: 13 }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--teal)' }} />
-            Morgan is typing...
+            Hope is typing...
           </div>
         )}
         <div ref={bottomRef} />

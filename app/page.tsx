@@ -8,7 +8,7 @@ export default function LandingPage() {
   const router = useRouter()
   const [checking, setChecking] = useState(true)
   const [messages, setMessages] = useState([
-    { role: 'morgan', content: 'Welcome to CFAC — the Children & Family Advocacy Center. I\'m your AI guide. Ask me anything about our programs, services, or how we can help.' },
+    { role: 'hope', content: 'Welcome to CFAC — the Children & Family Advocacy Center. I\'m your AI guide. Ask me anything about our programs, services, or how we can help.' },
   ])
   const [loading, setLoading] = useState(false)
   const [text, setText] = useState('')
@@ -51,15 +51,15 @@ export default function LandingPage() {
     setText('')
     setLoading(true)
     try {
-      const res = await fetch('/api/morgan/public', {
+      const res = await fetch('/api/hope/public', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text, history: messages }),
       })
       const data = await res.json()
-      setMessages(prev => [...prev, { role: 'morgan', content: data.message }])
+      setMessages(prev => [...prev, { role: 'hope', content: data.message }])
     } catch {
-      setMessages(prev => [...prev, { role: 'morgan', content: 'I had trouble with that. Try again?' }])
+      setMessages(prev => [...prev, { role: 'hope', content: 'I had trouble with that. Try again?' }])
     }
     setLoading(false)
   }
@@ -134,8 +134,8 @@ export default function LandingPage() {
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 24px 20px', maxWidth: 640, width: '100%', margin: '0 auto' }}>
         {messages.map((m, i) => (
           <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start', marginBottom: 12 }}>
-            {m.role === 'morgan' && (
-              <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#1AAFA0', border: '1px solid #1AAFA0', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: 8, flexShrink: 0, fontSize: 12, color: '#FFFFFF', fontWeight: 700 }}>M</div>
+            {m.role === 'hope' && (
+              <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#1AAFA0', border: '1px solid #1AAFA0', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: 8, flexShrink: 0, fontSize: 12, color: '#FFFFFF', fontWeight: 700 }}>H</div>
             )}
             <div style={{
               maxWidth: '80%', padding: '12px 16px', borderRadius: 0,
@@ -149,8 +149,8 @@ export default function LandingPage() {
         ))}
         {loading && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#8A8680', fontSize: 13, marginBottom: 12 }}>
-            <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#1AAFA0', border: '1px solid #1AAFA0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#FFFFFF', fontWeight: 700 }}>M</div>
-            Morgan is typing...
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#1AAFA0', border: '1px solid #1AAFA0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#FFFFFF', fontWeight: 700 }}>H</div>
+            Hope is typing...
           </div>
         )}
         <div ref={bottomRef} />

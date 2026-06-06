@@ -11,11 +11,11 @@ type CritiqueResult = {
   gemini: CritiqueScore & { available: boolean }
 }
 
-function buildPrompt(morganResponse: string, sopJson: string | null): string {
-  return `You are a senior operations consultant peer-reviewing an AI process design assistant called Morgan.
+function buildPrompt(hopeResponse: string, sopJson: string | null): string {
+  return `You are a senior operations consultant peer-reviewing an AI process design assistant called Hope.
 
-Morgan's response:
-${morganResponse.slice(0, 1200)}
+Hope's response:
+${hopeResponse.slice(0, 1200)}
 ${sopJson ? `\nExtracted SOP JSON:\n${sopJson.slice(0, 600)}\n` : ''}
 Rate this response on operational accuracy, question quality, and completeness.
 Return ONLY valid JSON (no markdown):
@@ -43,25 +43,25 @@ function clampScore(score: unknown): number {
 }
 
 export async function POST(req: Request) {
-  let morganResponse: string
+  let hopeResponse: string
   let sopJson: string | null
 
   try {
-    const body = (await req.json()) as { morganResponse?: string; sopJson?: string | null }
-    morganResponse = body.morganResponse ?? ''
+    const body = (await req.json()) as { hopeResponse?: string; sopJson?: string | null }
+    hopeResponse = body.hopeResponse ?? ''
     sopJson = body.sopJson ?? null
   } catch {
     return new Response('Invalid payload', { status: 400 })
   }
 
-  if (!morganResponse.trim()) {
+  if (!hopeResponse.trim()) {
     return Response.json({
       openai: { available: false, score: 0, issues: [], suggestion: '' },
       gemini: { available: false, score: 0, issues: [], suggestion: '' },
     })
   }
 
-  const prompt = buildPrompt(morganResponse, sopJson)
+  const prompt = buildPrompt(hopeResponse, sopJson)
 
   const result: CritiqueResult = {
     openai: { available: false, score: 0, issues: [], suggestion: '' },

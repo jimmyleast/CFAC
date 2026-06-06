@@ -81,7 +81,7 @@ export default function MultiModalInput({ onSend, disabled }: Props) {
           value={text}
           onChange={e => setText(e.target.value)}
           onKeyDown={handleKey}
-          placeholder="Type, talk, or show Morgan anything..."
+          placeholder="Type, talk, or show Hope anything..."
           disabled={disabled || isRecording}
           rows={1}
           className="textarea-field"

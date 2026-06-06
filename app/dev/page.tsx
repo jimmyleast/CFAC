@@ -245,7 +245,7 @@ export default function DevDashboardPage() {
         <div>
           <div className="page-eyebrow" style={{ color: '#C9A84C' }}>Tools</div>
           <h1 className="page-title">Dev Console</h1>
-          <p className="page-copy">Morgan logs, service health, env check. Last refreshed {sinceChecked}.</p>
+          <p className="page-copy">Hope logs, service health, env check. Last refreshed {sinceChecked}.</p>
         </div>
         <div className="hero-actions">
           <Link href="/" className="btn btn-ghost">← Dashboard</Link>

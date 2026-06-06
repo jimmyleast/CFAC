@@ -4,9 +4,9 @@ import { useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import * as Icons from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import MorganVoiceButton from '@/components/MorganVoiceButton'
+import HopeVoiceButton from '@/components/HopeVoiceButton'
 
-type MorganCard = {
+type HopeCard = {
   type: string
   actionId?: string | null
   title?: string
@@ -20,15 +20,15 @@ type MorganCard = {
 
 type Message = {
   id: string
-  role: 'user' | 'morgan'
+  role: 'user' | 'hope'
   text: string
-  card?: MorganCard | null
+  card?: HopeCard | null
   followups?: string[]
 }
 
 const GOLD = '#C9A84C'
-const MORGAN = '#1AAFA0'
-const MORGAN_GLOW = 'rgba(26,175,160,0.18)'
+const HOPE = '#1AAFA0'
+const HOPE_GLOW = 'rgba(26,175,160,0.18)'
 const BG = '#0A0A0A'
 const BG2 = '#111111'
 const BG3 = '#1A1A1A'
@@ -47,7 +47,7 @@ async function authFetch(url: string, opts: RequestInit = {}) {
   return fetch(url, { ...opts, headers })
 }
 
-export default function MorganDock() {
+export default function HopeDock() {
   const pathname = usePathname() || ''
   const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState(false)
@@ -100,11 +100,11 @@ export default function MorganDock() {
     setMessages((prev) => [...prev, { ...msg, id: `${Date.now()}-${Math.random()}` }])
   }
 
-  function updateLastMorgan(text: string, card?: MorganCard | null) {
+  function updateLastHope(text: string, card?: HopeCard | null) {
     setMessages((prev) => {
       const next = [...prev]
       for (let i = next.length - 1; i >= 0; i--) {
-        if (next[i].role === 'morgan') {
+        if (next[i].role === 'hope') {
           next[i] = { ...next[i], text, card: card ?? next[i].card }
           return next
         }
@@ -113,11 +113,11 @@ export default function MorganDock() {
     })
   }
 
-  function updateLastMorganFollowups(followups: string[]) {
+  function updateLastHopeFollowups(followups: string[]) {
     setMessages((prev) => {
       const next = [...prev]
       for (let i = next.length - 1; i >= 0; i--) {
-        if (next[i].role === 'morgan') {
+        if (next[i].role === 'hope') {
           next[i] = { ...next[i], followups }
           return next
         }
@@ -150,16 +150,16 @@ export default function MorganDock() {
     if (!fromChip) setInput('')
     setSending(true)
     appendMessage({ role: 'user', text: q })
-    appendMessage({ role: 'morgan', text: '' })
+    appendMessage({ role: 'hope', text: '' })
 
     try {
-      const res = await authFetch('/api/morgan/unified', {
+      const res = await authFetch('/api/hope/unified', {
         method: 'POST',
         body: JSON.stringify({ query: q }),
       })
 
       if (!res.ok) {
-        updateLastMorgan('Something went wrong.')
+        updateLastHope('Something went wrong.')
         setSending(false)
         return
       }
@@ -167,7 +167,7 @@ export default function MorganDock() {
       const reader = res.body?.getReader()
       const decoder = new TextDecoder()
       let fullText = ''
-      let lastCard: MorganCard | null = null
+      let lastCard: HopeCard | null = null
 
       if (reader) {
         while (true) {
@@ -180,21 +180,21 @@ export default function MorganDock() {
               const parsed = JSON.parse(line.slice(6))
               if (parsed.token) {
                 fullText += parsed.token
-                updateLastMorgan(fullText, lastCard)
+                updateLastHope(fullText, lastCard)
               }
               if (parsed.card) {
                 lastCard = parsed.card
-                updateLastMorgan(fullText, parsed.card)
+                updateLastHope(fullText, parsed.card)
               }
               if (Array.isArray(parsed.followups)) {
-                updateLastMorganFollowups(parsed.followups)
+                updateLastHopeFollowups(parsed.followups)
               }
             } catch {}
           }
         }
       }
     } catch {
-      updateLastMorgan('Network error.')
+      updateLastHope('Network error.')
     }
 
     setSending(false)
@@ -204,7 +204,7 @@ export default function MorganDock() {
     if (!message.card?.actionId || cardBusy) return
     setCardBusy(true)
     try {
-      const endpoint = message.card.type === 'ops_action_preview' ? '/api/morgan/ops-model' : '/api/morgan/inventory/confirm'
+      const endpoint = message.card.type === 'ops_action_preview' ? '/api/hope/ops-model' : '/api/hope/inventory/confirm'
       const res = await authFetch(endpoint, {
         method: 'POST',
         body: JSON.stringify({ actionId: message.card.actionId, decision }),
@@ -235,7 +235,7 @@ export default function MorganDock() {
         maxWidth: 'none',
         maxHeight: 'none',
         background: BG2,
-        border: `1px solid ${MORGAN}`,
+        border: `1px solid ${HOPE}`,
         zIndex: 30,
         display: 'flex',
         flexDirection: 'column',
@@ -255,7 +255,7 @@ export default function MorganDock() {
         height: 600,
         maxHeight: 'calc(100vh - 108px)',
         background: BG2,
-        border: `1px solid ${MORGAN}`,
+        border: `1px solid ${HOPE}`,
         zIndex: 30,
         display: 'flex',
         flexDirection: 'column',
@@ -270,17 +270,17 @@ export default function MorganDock() {
   return (
     <>
       {/* Chat panel */}
-      <div role="dialog" aria-label="Morgan chat" className="morgan-panel" style={panelStyle}>
+      <div role="dialog" aria-label="Hope chat" className="hope-panel" style={panelStyle}>
         {/* Header */}
         <div style={{ padding: '14px 14px 14px 16px', borderBottom: `1px solid ${LINE}`, display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
           <div style={{
-            width: 36, height: 36, background: MORGAN_GLOW, border: `1px solid ${MORGAN}`,
+            width: 36, height: 36, background: HOPE_GLOW, border: `1px solid ${HOPE}`,
             display: 'grid', placeItems: 'center', position: 'relative', flexShrink: 0,
           }}>
-            <Icons.ChevronsUp size={20} color={MORGAN} strokeWidth={1.5} />
+            <Icons.ChevronsUp size={20} color={HOPE} strokeWidth={1.5} />
           </div>
           <div style={{ flex: 1, minWidth: 0, lineHeight: 1.2 }}>
-            <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 14, letterSpacing: '0.08em', textTransform: 'uppercase', color: TEXT }}>Morgan</div>
+            <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 14, letterSpacing: '0.08em', textTransform: 'uppercase', color: TEXT }}>Hope</div>
             <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 500, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: TEXT2, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ width: 6, height: 6, background: SUCCESS }} />
               Online
@@ -291,7 +291,7 @@ export default function MorganDock() {
               type="button"
               onClick={() => setExpanded((v) => !v)}
               aria-label={expanded ? 'Collapse' : 'Expand'}
-              className="morgan-expand-btn"
+              className="hope-expand-btn"
               style={{
                 background: 'transparent', border: '1px solid rgba(255,255,255,0.22)', color: TEXT2,
                 width: 36, height: 36, minWidth: 36, minHeight: 36,
@@ -323,11 +323,11 @@ export default function MorganDock() {
         <div ref={threadRef} style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
           {messages.length === 0 && (
             <div style={{ color: TEXT2, fontSize: 13, textAlign: 'center', padding: '40px 16px' }}>
-              Ask Morgan anything. Status, work orders, scheduling, inventory.
+              Ask Hope anything — pull a number, check a program, or build a view from your data.
             </div>
           )}
           {messages.map((m) => {
-            const showThinking = m.role === 'morgan' && sending && !m.text
+            const showThinking = m.role === 'hope' && sending && !m.text
             return (
             <div
               key={m.id}
@@ -339,24 +339,24 @@ export default function MorganDock() {
             >
               <div style={{
                 width: 26, height: 26,
-                background: m.role === 'morgan' ? MORGAN_GLOW : BG3,
-                border: `1px solid ${m.role === 'morgan' ? MORGAN : LINE2}`,
+                background: m.role === 'hope' ? HOPE_GLOW : BG3,
+                border: `1px solid ${m.role === 'hope' ? HOPE : LINE2}`,
                 display: 'grid', placeItems: 'center', flexShrink: 0,
                 fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 10, color: TEXT,
               }}>
-                {m.role === 'morgan'
-                  ? <Icons.ChevronsUp size={14} color={MORGAN} strokeWidth={1.5} />
+                {m.role === 'hope'
+                  ? <Icons.ChevronsUp size={14} color={HOPE} strokeWidth={1.5} />
                   : userInitials}
               </div>
               <div style={{
                 fontSize: 13, lineHeight: 1.55, color: TEXT,
                 padding: '12px 14px',
-                background: m.role === 'morgan' ? 'rgba(26,175,160,0.08)' : 'rgba(255,255,255,0.025)',
-                border: m.role === 'morgan' ? 0 : `1px solid ${LINE}`,
+                background: m.role === 'hope' ? 'rgba(26,175,160,0.08)' : 'rgba(255,255,255,0.025)',
+                border: m.role === 'hope' ? 0 : `1px solid ${LINE}`,
                 whiteSpace: 'pre-wrap',
               }}>
                 {showThinking ? (
-                  <span className="morgan-thinking" aria-label="Morgan is thinking">
+                  <span className="hope-thinking" aria-label="Hope is thinking">
                     <span />
                     <span />
                     <span />
@@ -392,7 +392,7 @@ export default function MorganDock() {
                     )}
                   </div>
                 )}
-                {m.role === 'morgan' && m.followups && m.followups.length > 0 && (
+                {m.role === 'hope' && m.followups && m.followups.length > 0 && (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
                     {m.followups.map((label) => (
                       <button
@@ -404,13 +404,13 @@ export default function MorganDock() {
                           fontFamily: 'var(--font-heading)', fontWeight: 600, fontSize: 10.5, letterSpacing: '0.1em', textTransform: 'uppercase',
                           padding: '5px 10px',
                           background: 'transparent',
-                          border: `1px solid ${MORGAN}`,
-                          color: MORGAN,
+                          border: `1px solid ${HOPE}`,
+                          color: HOPE,
                           cursor: sending ? 'not-allowed' : 'pointer',
                           opacity: sending ? 0.5 : 1,
                           transition: 'background 120ms ease-out',
                         }}
-                        onMouseEnter={(e) => { if (!sending) (e.currentTarget as HTMLElement).style.background = MORGAN_GLOW }}
+                        onMouseEnter={(e) => { if (!sending) (e.currentTarget as HTMLElement).style.background = HOPE_GLOW }}
                         onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
                       >
                         {label}
@@ -433,7 +433,7 @@ export default function MorganDock() {
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send() }
             }}
-            placeholder="Ask Morgan anything..."
+            placeholder="Ask Hope anything..."
             rows={1}
             style={{
               flex: 1,
@@ -449,15 +449,15 @@ export default function MorganDock() {
               maxHeight: 120,
               outline: 'none',
             }}
-            onFocus={(e) => (e.currentTarget.style.borderColor = MORGAN)}
+            onFocus={(e) => (e.currentTarget.style.borderColor = HOPE)}
             onBlur={(e) => (e.currentTarget.style.borderColor = LINE)}
           />
-          <MorganVoiceButton
+          <HopeVoiceButton
             disabled={sending}
             onTranscript={handleVoiceTranscript}
             onListeningChange={handleVoiceListeningChange}
             size={40}
-            label="Talk to Morgan"
+            label="Talk to Hope"
           />
           <button
             type="button"
@@ -469,8 +469,8 @@ export default function MorganDock() {
               height: 40,
               minWidth: 40,
               minHeight: 40,
-              background: input.trim() && !sending ? MORGAN : BG3,
-              border: `1px solid ${input.trim() && !sending ? MORGAN : LINE2}`,
+              background: input.trim() && !sending ? HOPE : BG3,
+              border: `1px solid ${input.trim() && !sending ? HOPE : LINE2}`,
               color: input.trim() && !sending ? BG : TEXT2,
               display: 'grid',
               placeItems: 'center',
@@ -488,8 +488,8 @@ export default function MorganDock() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        aria-label={open ? 'Close Morgan' : 'Open Morgan'}
-        className="dock-morgan-pill"
+        aria-label={open ? 'Close Hope' : 'Open Hope'}
+        className="dock-hope-pill"
         style={{
           position: 'fixed',
           bottom: dockBottom,
@@ -497,7 +497,7 @@ export default function MorganDock() {
           height: 52,
           padding: '0 20px 0 16px',
           background: BG2,
-          border: `1px solid ${MORGAN}`,
+          border: `1px solid ${HOPE}`,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -511,7 +511,7 @@ export default function MorganDock() {
       >
         <Icons.ChevronsUp
           size={22}
-          color={MORGAN}
+          color={HOPE}
           strokeWidth={1.5}
           style={{ transition: 'transform 240ms cubic-bezier(0.2,0.8,0.2,1)', transform: open ? 'rotate(180deg)' : 'none' }}
         />
@@ -522,7 +522,7 @@ export default function MorganDock() {
             letterSpacing: '0.1em', textTransform: 'uppercase', color: TEXT, whiteSpace: 'nowrap',
           }}
         >
-          Ask Morgan
+          Ask Hope
         </span>
       </button>
     </>

@@ -22,8 +22,8 @@ function emptyPayload(days: number, since: string, status: 'ok' | 'degraded' = '
     note: note || null,
     summary: {
       totalEvents: 0,
-      morganRequests: 0,
-      morganErrors: 0,
+      hopeRequests: 0,
+      hopeErrors: 0,
       exportsCompleted: 0,
       processesCreated: 0,
       avgLatencyMs: 0,
@@ -32,7 +32,7 @@ function emptyPayload(days: number, since: string, status: 'ok' | 'degraded' = '
     },
     funnel: {
       processCreated: 0,
-      morganStarted: 0,
+      hopeStarted: 0,
       exportCompleted: 0,
     },
     daily: [],
@@ -89,13 +89,13 @@ export async function GET(request: Request) {
 
   const events = (data || []) as AppEventRow[]
 
-  const morganRequests = events.filter((e) => e.event_name === 'morgan.chat.request')
-  const morganErrors = events.filter((e) => e.event_name === 'morgan.chat.error')
-  const morganResponses = events.filter((e) => e.event_name === 'morgan.chat.response')
+  const hopeRequests = events.filter((e) => e.event_name === 'hope.chat.request')
+  const hopeErrors = events.filter((e) => e.event_name === 'hope.chat.error')
+  const hopeResponses = events.filter((e) => e.event_name === 'hope.chat.response')
   const exportsCompleted = events.filter((e) => e.event_name === 'export.completed')
   const processesCreated = events.filter((e) => e.event_name === 'process.created')
 
-  const responseDurations = morganResponses
+  const responseDurations = hopeResponses
     .map((e) => e.duration_ms)
     .filter((v): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0)
 
@@ -104,35 +104,35 @@ export async function GET(request: Request) {
     : 0
   const p95LatencyMs = Math.round(percentile(responseDurations, 95))
 
-  const errorRatePct = morganRequests.length
-    ? Number(((morganErrors.length / morganRequests.length) * 100).toFixed(1))
+  const errorRatePct = hopeRequests.length
+    ? Number(((hopeErrors.length / hopeRequests.length) * 100).toFixed(1))
     : 0
 
-  const processState = new Map<string, { created: boolean; morgan: boolean; exported: boolean }>()
+  const processState = new Map<string, { created: boolean; hope: boolean; exported: boolean }>()
   for (const event of events) {
     if (!event.process_id) continue
-    const current = processState.get(event.process_id) || { created: false, morgan: false, exported: false }
+    const current = processState.get(event.process_id) || { created: false, hope: false, exported: false }
     if (event.event_name === 'process.created') current.created = true
-    if (event.event_name === 'morgan.chat.request') current.morgan = true
+    if (event.event_name === 'hope.chat.request') current.hope = true
     if (event.event_name === 'export.completed') current.exported = true
     processState.set(event.process_id, current)
   }
 
   let funnelCreated = 0
-  let funnelMorgan = 0
+  let funnelHope = 0
   let funnelExport = 0
   for (const state of processState.values()) {
     if (state.created) funnelCreated += 1
-    if (state.created && state.morgan) funnelMorgan += 1
-    if (state.created && state.morgan && state.exported) funnelExport += 1
+    if (state.created && state.hope) funnelHope += 1
+    if (state.created && state.hope && state.exported) funnelExport += 1
   }
 
   const perDay = new Map<string, { day: string; requests: number; errors: number; exports: number; created: number }>()
   for (const event of events) {
     const day = event.created_at.slice(0, 10)
     const current = perDay.get(day) || { day, requests: 0, errors: 0, exports: 0, created: 0 }
-    if (event.event_name === 'morgan.chat.request') current.requests += 1
-    if (event.event_name === 'morgan.chat.error') current.errors += 1
+    if (event.event_name === 'hope.chat.request') current.requests += 1
+    if (event.event_name === 'hope.chat.error') current.errors += 1
     if (event.event_name === 'export.completed') current.exports += 1
     if (event.event_name === 'process.created') current.created += 1
     perDay.set(day, current)
@@ -141,7 +141,7 @@ export async function GET(request: Request) {
   const daily = [...perDay.values()].sort((a, b) => a.day.localeCompare(b.day))
 
   const errorCounts = new Map<string, number>()
-  for (const event of morganErrors) {
+  for (const event of hopeErrors) {
     const metadata = event.metadata || {}
     const errorText = typeof metadata.error === 'string' ? metadata.error : event.status || event.event_name
     const key = errorText.trim() || event.event_name
@@ -159,8 +159,8 @@ export async function GET(request: Request) {
     note: null,
     summary: {
       totalEvents: events.length,
-      morganRequests: morganRequests.length,
-      morganErrors: morganErrors.length,
+      hopeRequests: hopeRequests.length,
+      hopeErrors: hopeErrors.length,
       exportsCompleted: exportsCompleted.length,
       processesCreated: processesCreated.length,
       avgLatencyMs,
@@ -169,7 +169,7 @@ export async function GET(request: Request) {
     },
     funnel: {
       processCreated: funnelCreated,
-      morganStarted: funnelMorgan,
+      hopeStarted: funnelHope,
       exportCompleted: funnelExport,
     },
     daily,

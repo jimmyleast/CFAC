@@ -240,7 +240,7 @@ end $$;
 -- Feature flags the app expects
 insert into feature_flags (key, description, enabled, rollout_percent) values
   ('telemetry_events', 'Enable in-app telemetry event writes.', true, 100),
-  ('morgan_schema_guard', 'Enable strict coercion/guardrails for agent JSON payloads.', true, 100)
+  ('hope_schema_guard', 'Enable strict coercion/guardrails for agent JSON payloads.', true, 100)
 on conflict (key) do nothing;
 
 -- Teams = CFAC's real components (nav starts on Executive + Data; the rest

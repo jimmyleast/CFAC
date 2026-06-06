@@ -1,6 +1,6 @@
 import { getAdminClient } from '@/lib/admin'
 
-export type FeatureFlagKey = 'telemetry_events' | 'morgan_schema_guard'
+export type FeatureFlagKey = 'telemetry_events' | 'hope_schema_guard'
 
 type FeatureFlagRow = {
   key: string

@@ -39,7 +39,7 @@ export function plainStatus(status: string, builderStatus: string | null): { lab
     return { label: 'DONE', icon: '✓', description: 'Live and ready to use.' }
   }
   if (builderStatus === 'building' || builderStatus === 'pending') {
-    return { label: 'BEING BUILT', icon: '⚡', description: 'Morgan is building this now.' }
+    return { label: 'BEING BUILT', icon: '⚡', description: 'Hope is building this now.' }
   }
   if (status === 'rejected') {
     return { label: 'NOT MOVING FORWARD', icon: '✗', description: 'We decided not to build this right now.' }

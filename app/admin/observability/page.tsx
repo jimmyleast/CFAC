@@ -20,8 +20,8 @@ type ObservabilityPayload = {
   note?: string | null
   summary: {
     totalEvents: number
-    morganRequests: number
-    morganErrors: number
+    hopeRequests: number
+    hopeErrors: number
     exportsCompleted: number
     processesCreated: number
     avgLatencyMs: number
@@ -30,7 +30,7 @@ type ObservabilityPayload = {
   }
   funnel: {
     processCreated: number
-    morganStarted: number
+    hopeStarted: number
     exportCompleted: number
   }
   daily: Array<{ day: string; requests: number; errors: number; exports: number; created: number }>
@@ -96,7 +96,7 @@ export default function ObservabilityPage() {
           <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 600, fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: GOLD, marginBottom: 8 }}>Tools</div>
           <h1 style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 36, letterSpacing: '0.02em', textTransform: 'uppercase', margin: 0, lineHeight: 1.05 }}>Observability</h1>
           <p style={{ fontSize: 13, color: TEXT2, marginTop: 6 }}>
-            In-app telemetry for Morgan reliability, funnel progression, and export outcomes.
+            In-app telemetry for Hope reliability, funnel progression, and export outcomes.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 4 }}>
@@ -140,8 +140,8 @@ export default function ObservabilityPage() {
       ) : (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10, marginBottom: 12 }}>
-            <Kpi label="Morgan help items" value={payload.summary.morganRequests} />
-            <Kpi label="Morgan error rate" value={`${payload.summary.errorRatePct}%`} accent={payload.summary.errorRatePct > 5 ? CRITICAL : SUCCESS} />
+            <Kpi label="Hope help items" value={payload.summary.hopeRequests} />
+            <Kpi label="Hope error rate" value={`${payload.summary.errorRatePct}%`} accent={payload.summary.errorRatePct > 5 ? CRITICAL : SUCCESS} />
             <Kpi label="Avg / P95 latency" value={`${payload.summary.avgLatencyMs} / ${payload.summary.p95LatencyMs} ms`} />
             <Kpi label="Created to export" value={`${conversionRate}%`} />
           </div>
@@ -169,7 +169,7 @@ export default function ObservabilityPage() {
             <Panel title="Funnel">
               <div style={{ display: 'grid', gap: 8, fontSize: 13 }}>
                 <FunnelRow label="Process created" value={payload.funnel.processCreated} />
-                <FunnelRow label="Morgan started" value={payload.funnel.morganStarted} />
+                <FunnelRow label="Hope started" value={payload.funnel.hopeStarted} />
                 <FunnelRow label="Export completed" value={payload.funnel.exportCompleted} />
               </div>
               <div style={{ fontFamily: 'var(--font-heading)', fontSize: 10, color: TEXT3, marginTop: 18, marginBottom: 8, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Top errors</div>
