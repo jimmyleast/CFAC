@@ -1,3 +1,5 @@
+import { getRequestUser } from '@/lib/auth/requestUser'
+
 export const runtime = 'nodejs'
 
 type CritiqueScore = {
@@ -43,6 +45,10 @@ function clampScore(score: unknown): number {
 }
 
 export async function POST(req: Request) {
+  // Auth required — this route calls paid LLM APIs (OpenAI/Gemini) with our keys.
+  const user = await getRequestUser(req)
+  if (!user) return new Response('Unauthorized', { status: 401 })
+
   let hopeResponse: string
   let sopJson: string | null
 

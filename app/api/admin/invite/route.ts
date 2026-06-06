@@ -2,7 +2,7 @@ import { sendEmail } from '@/lib/email'
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { createClient as createServerClient } from '@/lib/supabase/server'
-import { checkIsAdmin, getAdminClient, upsertUserProfile } from '@/lib/admin'
+import { checkIsAdmin, upsertUserProfile } from '@/lib/admin'
 import { getSupabasePublicConfig } from '@/lib/supabase/config'
 import { elapsedMs, emitAppEvent } from '@/lib/telemetry/events'
 import { isFeatureEnabled } from '@/lib/featureFlags'
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
     return NextResponse.json(emailDisabledJson({ success: false }), { status: 503 })
   }
 
-  const { email, squad_id, squad_name, invited_by_name } = await request.json()
+  const { email, invited_by_name } = await request.json()
   const rawEmail = String(email || '').trim()
   // Handle "Display Name <email@domain.com>" format
   const angleMatch = rawEmail.match(/<([^>]+)>/)
@@ -134,15 +134,6 @@ export async function POST(request: Request) {
   // Upsert profile
   await upsertUserProfile(targetUserId, normalizedEmail)
 
-  // Add to squad if specified
-  const adminClient = getAdminClient()
-  if (squad_id) {
-    await adminClient.from('squad_members').upsert(
-      { squad_id, user_id: targetUserId, role: 'member' },
-      { onConflict: 'squad_id,user_id' }
-    )
-  }
-
   // Generate magic link for them
   const appBaseUrl = resolveAppBaseUrl(request)
   if (isLocalhostBaseUrl(appBaseUrl) && process.env.NODE_ENV !== 'development') {
@@ -198,7 +189,6 @@ export async function POST(request: Request) {
 
   // Send branded invite email
   const inviterName = invited_by_name || user.email?.split('@')[0] || 'Your team'
-  const squadLine = squad_name ? `<p style="margin:0 0 20px;color:#8A8680;font-size:14px;">You've been added to the <strong style="color:#C9A84C;">${squad_name}</strong> squad.</p>` : ''
 
   const emailResult = await sendEmail({
     to: normalizedEmail,
@@ -209,7 +199,6 @@ export async function POST(request: Request) {
           <h1 style="margin:0 0 6px;font-size:32px;line-height:1;color:#F0EDE6;font-family:'Barlow Condensed',Arial,sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">CFAC</h1>
           <p style="margin:0 0 28px;color:#8A8680;font-size:11px;text-transform:uppercase;letter-spacing:0.1em;">Operations Platform</p>
           <p style="margin:0 0 16px;color:#F0EDE6;font-size:15px;"><strong>${inviterName}</strong> has invited you to join CFAC.</p>
-          ${squadLine}
           <p style="margin:0 0 24px;color:#8A8680;font-size:14px;">Click the button below to sign in. No password required.</p>
           <a href="${actionLink}" style="display:inline-block;background:#FFFFFF;color:#0A0A0A;text-decoration:none;font-weight:700;padding:14px 28px;font-size:13px;font-family:'Barlow Condensed',Arial,sans-serif;text-transform:uppercase;letter-spacing:0.08em;">Accept Invite</a>
           <p style="margin:28px 0 6px;color:#4A4845;font-size:11px;">Or copy and paste this link:</p>
@@ -244,7 +233,6 @@ export async function POST(request: Request) {
     durationMs: elapsedMs(startedAt),
     metadata: {
       email: normalizedEmail,
-      squadId: squad_id || null,
       invitedUserId: targetUserId,
       messageId,
     },

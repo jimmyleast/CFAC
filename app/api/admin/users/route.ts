@@ -1,154 +1,53 @@
-import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { checkIsAdmin, getAdminClient } from '@/lib/admin'
+import { getAdminClient, checkIsAdmin } from '@/lib/admin'
+import { getRequestUser } from '@/lib/auth/requestUser'
 
-export async function GET() {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+export const dynamic = 'force-dynamic'
+
+export async function GET(req: Request) {
+  const user = await getRequestUser(req)
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const admin = await checkIsAdmin(user.id, user.email || '')
-  if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-
-  const adminClient = getAdminClient()
-
-  // Get all auth users
-  const { data: authData, error: authError } = await adminClient.auth.admin.listUsers()
-  if (authError) return NextResponse.json({ error: authError.message }, { status: 500 })
-
-  // Get all profiles
-  const { data: profiles } = await adminClient.from('user_profiles').select('*')
-  const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]))
-
-  // Get squad memberships for all users
-  const { data: members } = await adminClient
-    .from('squad_members')
-    .select('user_id, squad_id, role, squads(id, name, color, area)')
-
-  const membersByUser = new Map<string, any[]>()
-  for (const m of members || []) {
-    const list = membersByUser.get(m.user_id) || []
-    list.push(m)
-    membersByUser.set(m.user_id, list)
+  if (!(await checkIsAdmin(user.id, user.email || ''))) {
+    return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
   }
 
-  // Get team memberships for all users
-  const { data: teamMembers } = await adminClient
-    .from('team_members')
-    .select('user_id, role, teams(id, name, slug)')
+  const admin = getAdminClient()
+  const { data, error } = await admin
+    .from('user_profiles')
+    .select('id, email, display_name, title, phone, is_admin, active, created_at')
+    .order('display_name', { nullsFirst: false })
 
-  const teamsByUser = new Map<string, any[]>()
-  for (const m of teamMembers || []) {
-    const list = teamsByUser.get(m.user_id) || []
-    list.push({ role: m.role, ...m.teams })
-    teamsByUser.set(m.user_id, list)
-  }
-
-  const users = authData.users.map((u) => {
-    const profile = profileMap.get(u.id)
-    return {
-      id: u.id,
-      email: u.email,
-      display_name: profile?.display_name || profile?.title || null,
-      title: profile?.title || null,
-      is_admin: profile?.is_admin || false,
-      created_at: u.created_at,
-      last_sign_in: u.last_sign_in_at,
-      banned_until: (u as any).banned_until || null,
-      squads: membersByUser.get(u.id) || [],
-      teams: teamsByUser.get(u.id) || [],
-    }
-  })
-
-  return NextResponse.json(users)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ users: data || [] })
 }
 
 export async function PATCH(req: Request) {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getRequestUser(req)
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const admin = await checkIsAdmin(user.id, user.email || '')
-  if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-
-  const body = await req.json()
-  const targetUserId = String(body.user_id || '')
-  if (!targetUserId) return NextResponse.json({ error: 'user_id required' }, { status: 400 })
-
-  const adminClient = getAdminClient()
-  const profilePatch: Record<string, unknown> = {}
-
-  if (typeof body.is_admin === 'boolean') profilePatch.is_admin = body.is_admin
-  if (typeof body.display_name === 'string') profilePatch.display_name = body.display_name.trim() || null
-  if (typeof body.title === 'string') profilePatch.title = body.title.trim() || null
-  if (typeof body.default_team_id === 'string' || body.default_team_id === null) {
-    profilePatch.default_team_id = body.default_team_id
+  if (!(await checkIsAdmin(user.id, user.email || ''))) {
+    return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
   }
 
-  if (Object.keys(profilePatch).length > 0) {
-    const { error } = await adminClient
-      .from('user_profiles')
-      .update(profilePatch)
-      .eq('id', targetUserId)
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  const body = await req.json().catch(() => ({}))
+  const targetId = String(body.id || '')
+  if (!targetId) return NextResponse.json({ error: 'id required' }, { status: 400 })
+
+  const patch: Record<string, unknown> = {}
+  if (typeof body.is_admin === 'boolean') patch.is_admin = body.is_admin
+  if (typeof body.active === 'boolean') patch.active = body.active
+  if (typeof body.display_name === 'string') patch.display_name = body.display_name.trim()
+  if (typeof body.title === 'string') patch.title = body.title.trim()
+  if (Object.keys(patch).length === 0) {
+    return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
   }
 
-  const teamAction = body.team_action as string | undefined
-  if (teamAction) {
-    const role = ['lead', 'member', 'viewer'].includes(body.role) ? body.role : 'member'
-    let teamId = body.team_id as string | undefined
-
-    if (!teamId && body.team_slug) {
-      const { data: team, error } = await adminClient
-        .from('teams')
-        .select('id')
-        .eq('slug', String(body.team_slug))
-        .single()
-      if (error || !team) return NextResponse.json({ error: 'Team not found' }, { status: 404 })
-      teamId = team.id
-    }
-
-    if (!teamId) return NextResponse.json({ error: 'team_id or team_slug required' }, { status: 400 })
-
-    if (teamAction === 'remove') {
-      const { error } = await adminClient
-        .from('team_members')
-        .delete()
-        .eq('team_id', teamId)
-        .eq('user_id', targetUserId)
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    } else if (teamAction === 'upsert') {
-      const { error } = await adminClient
-        .from('team_members')
-        .upsert(
-          { team_id: teamId, user_id: targetUserId, role, added_by: user.id },
-          { onConflict: 'team_id,user_id' },
-        )
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-      if (role === 'lead') {
-        await adminClient.from('teams').update({ lead_user_id: targetUserId }).eq('id', teamId)
-      }
-    } else {
-      return NextResponse.json({ error: 'Invalid team_action' }, { status: 400 })
-    }
+  // Prevent self-lockout: an admin can't remove their own admin/active status.
+  if (targetId === user.id && (patch.active === false || patch.is_admin === false)) {
+    return NextResponse.json({ error: 'You cannot remove your own admin/active status.' }, { status: 400 })
   }
 
-  if (typeof body.default_team_id === 'string') {
-    const { data: existing } = await adminClient
-      .from('team_members')
-      .select('id')
-      .eq('team_id', body.default_team_id)
-      .eq('user_id', targetUserId)
-      .maybeSingle()
-
-    if (!existing) {
-      const { error } = await adminClient
-        .from('team_members')
-        .insert({ team_id: body.default_team_id, user_id: targetUserId, role: 'member', added_by: user.id })
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-  }
-
+  const admin = getAdminClient()
+  const { error } = await admin.from('user_profiles').update(patch).eq('id', targetId)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }

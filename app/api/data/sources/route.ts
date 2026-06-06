@@ -8,9 +8,21 @@ export async function GET(req: Request) {
   const user = await getRequestUser(req)
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const componentSlug = new URL(req.url).searchParams.get('component')?.trim() || ''
   const admin = getAdminClient()
+
+  let query = admin
+    .from('data_sources')
+    .select('id, name, slug, kind, description, last_imported_at, components(name, slug)')
+    .order('name')
+  if (componentSlug) {
+    const { data: comp } = await admin.from('components').select('id').eq('slug', componentSlug).maybeSingle()
+    if (!comp) return NextResponse.json({ sources: [], component: null })
+    query = query.eq('component_id', comp.id)
+  }
+
   const [{ data: sources, error: srcErr }, { data: metricRows }, { data: issueRows }] = await Promise.all([
-    admin.from('data_sources').select('id, name, slug, kind, description, last_imported_at, teams(name, slug)').order('name'),
+    query,
     admin.from('metrics').select('source_id'),
     admin.from('import_rows').select('source_id, status'),
   ])
@@ -27,7 +39,7 @@ export async function GET(req: Request) {
     slug: s.slug,
     kind: s.kind,
     description: s.description,
-    team: s.teams?.name || null,
+    component: s.components?.name || null,
     lastImportedAt: s.last_imported_at,
     metricCount: metricCount[s.id] || 0,
     issueCount: issueCount[s.id] || 0,

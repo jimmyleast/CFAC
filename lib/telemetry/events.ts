@@ -17,10 +17,6 @@ export type AppEventName =
   | 'export.failed'
   | 'admin.invite.sent'
   | 'admin.invite.failed'
-  | 'admin.squad_member.added'
-  | 'admin.squad_member.removed'
-  | 'admin.squad_member.failed'
-  | 'discovery.bridge.completed'
 
 export type AppEventCategory = 'funnel' | 'latency' | 'error' | 'quality' | 'system'
 

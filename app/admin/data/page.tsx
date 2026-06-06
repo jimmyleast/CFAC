@@ -15,7 +15,7 @@ const WARN = '#E0846B'
 
 type Source = {
   id: string; name: string; slug: string; kind: string; description: string | null
-  team: string | null; lastImportedAt: string | null; metricCount: number; issueCount: number
+  component: string | null; lastImportedAt: string | null; metricCount: number; issueCount: number
 }
 
 const KIND_ICON: Record<string, keyof typeof Icons> = {
@@ -80,7 +80,7 @@ export default function DataSourcesPage() {
               {s.description && <div style={{ color: TEXT2, fontSize: 12, lineHeight: 1.5, marginBottom: 12 }}>{s.description}</div>}
               <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 12, color: TEXT2 }}>
                 <span><strong style={{ color: TEXT }}>{s.metricCount}</strong> metrics</span>
-                <span>{s.team || '—'}</span>
+                <span>{s.component || '—'}</span>
                 <span style={{ textTransform: 'capitalize' }}>{s.kind}</span>
                 <span>imported {fmtDate(s.lastImportedAt)}</span>
                 {s.issueCount > 0 && <span style={{ color: WARN }}>{s.issueCount} issues</span>}

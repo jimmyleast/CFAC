@@ -1,33 +1,22 @@
 import { NextResponse } from 'next/server'
 import { checkIsAdmin, getAdminClient } from '@/lib/admin'
 import { getRequestUser } from '@/lib/auth/requestUser'
-import { getUserTeamContext } from '@/lib/team-context'
 
 export async function GET(request: Request) {
   const user = await getRequestUser(request)
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const [is_admin, teamCtx] = await Promise.all([
-    checkIsAdmin(user.id, user.email || ''),
-    getUserTeamContext(user.id),
-  ])
+  const is_admin = await checkIsAdmin(user.id, user.email || '')
   const adminClient = getAdminClient()
-
-  const [{ data: profile }, { data: roleRecord }, { data: squadData }] = await Promise.all([
-    adminClient.from('user_profiles').select('display_name, phone').eq('id', user.id).single(),
-    adminClient.from('user_roles').select('display_name').eq('email', (user.email || '').toLowerCase()).single(),
-    adminClient.from('squad_members').select('role, squads(id, name, color, area)').eq('user_id', user.id),
-  ])
+  const { data: profile } = await adminClient
+    .from('user_profiles').select('display_name, phone').eq('id', user.id).single()
 
   return NextResponse.json({
     id: user.id,
     email: user.email,
-    display_name: roleRecord?.display_name || profile?.display_name || null,
+    display_name: profile?.display_name || null,
     phone: profile?.phone || null,
     is_admin,
-    can_see_all: is_admin || teamCtx.canSeeAll,
-    teams: teamCtx.teams.map(t => ({ slug: t.teamSlug, name: t.teamName })),
-    squads: (squadData || []).map((m: any) => ({ ...m.squads, my_role: m.role })),
   })
 }
 

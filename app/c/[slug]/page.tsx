@@ -1,0 +1,104 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import * as Icons from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
+import { CFAC_COMPONENTS } from '@/lib/nav-config'
+
+const GOLD = '#C9A84C'
+const TEAL = '#7DD3C7'
+const TEXT = '#F0EDE6'
+const TEXT2 = '#8A8680'
+const TEXT4 = '#555250'
+const LINE = '#2A2A2A'
+const BG2 = 'rgba(255,255,255,0.025)'
+const WARN = '#E0846B'
+
+type Source = {
+  id: string; name: string; slug: string; kind: string; description: string | null
+  lastImportedAt: string | null; metricCount: number; issueCount: number
+}
+
+const KIND_ICON: Record<string, keyof typeof Icons> = {
+  spreadsheet: 'Table', form: 'ClipboardList', system: 'Plug', manual: 'PencilLine',
+}
+
+async function authFetch(url: string) {
+  const supabase = createClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  const headers: HeadersInit = {}
+  if (session?.access_token) (headers as Record<string, string>).Authorization = `Bearer ${session.access_token}`
+  return fetch(url, { headers })
+}
+
+function fmtDate(iso: string | null) {
+  if (!iso) return 'never'
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+export default function ComponentPage() {
+  const params = useParams()
+  const router = useRouter()
+  const slug = String(params?.slug || '')
+  const meta = CFAC_COMPONENTS.find((c) => c.slug === slug)
+  const label = meta?.label || slug
+  const Icon = (Icons[(meta?.icon as keyof typeof Icons) || 'Folder'] || Icons.Folder) as React.ComponentType<{ size?: number; strokeWidth?: number; color?: string }>
+
+  const [sources, setSources] = useState<Source[]>([])
+  const [loading, setLoading] = useState(true)
+  const [err, setErr] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    authFetch(`/api/data/sources?component=${encodeURIComponent(slug)}`)
+      .then(async (r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
+      .then((d) => { if (active) { setSources(d.sources || []); setLoading(false) } })
+      .catch((e) => { if (active) { setErr(String(e.message || e)); setLoading(false) } })
+    return () => { active = false }
+  }, [slug])
+
+  const totalMetrics = sources.reduce((n, s) => n + s.metricCount, 0)
+
+  return (
+    <div style={{ maxWidth: 1000, margin: '0 auto', padding: '40px 24px' }}>
+      <div style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: GOLD, marginBottom: 8 }}>Component</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
+        <Icon size={26} strokeWidth={1.5} color={GOLD} />
+        <h1 style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 30, color: TEXT, margin: 0 }}>{label}</h1>
+      </div>
+      <p style={{ color: TEXT2, fontSize: 13, margin: '0 0 24px' }}>
+        {sources.length} data source{sources.length === 1 ? '' : 's'} · {totalMetrics} metrics
+      </p>
+
+      {loading && <div style={{ color: TEXT2 }}>Loading…</div>}
+      {err && <div style={{ color: WARN }}>{err}</div>}
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
+        {sources.map((s) => {
+          const KIcon = (Icons[KIND_ICON[s.kind] || 'Database'] || Icons.Database) as React.ComponentType<{ size?: number; strokeWidth?: number; color?: string }>
+          return (
+            <div key={s.id} style={{ background: BG2, border: `1px solid ${LINE}`, borderRadius: 12, padding: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                <KIcon size={18} strokeWidth={1.5} color={TEAL} />
+                <span style={{ fontWeight: 600, fontSize: 15, color: TEXT }}>{s.name}</span>
+              </div>
+              {s.description && <div style={{ color: TEXT2, fontSize: 12, lineHeight: 1.5, marginBottom: 12 }}>{s.description}</div>}
+              <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 12, color: TEXT2 }}>
+                <span><strong style={{ color: TEXT }}>{s.metricCount}</strong> metrics</span>
+                <span style={{ textTransform: 'capitalize' }}>{s.kind}</span>
+                <span>imported {fmtDate(s.lastImportedAt)}</span>
+                {s.issueCount > 0 && <span style={{ color: WARN }}>{s.issueCount} issues</span>}
+              </div>
+            </div>
+          )
+        })}
+        {!loading && !sources.length && !err && (
+          <div style={{ color: TEXT4, fontStyle: 'italic' }}>
+            No data sources for {label} yet. <button onClick={() => router.push('/admin/data/import')} style={{ background: 'none', border: 'none', color: GOLD, cursor: 'pointer', textDecoration: 'underline', padding: 0, fontSize: 13 }}>Import data</button>.
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

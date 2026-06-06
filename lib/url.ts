@@ -38,25 +38,23 @@ function getForwardedOrigin(request: Request) {
  * Prefers forwarded request origin in hosted environments to avoid localhost links.
  */
 export function resolveAppBaseUrl(request: Request) {
-  const requestOrigin = normalizeBaseUrl(new URL(request.url).origin)
-  const forwardedOrigin = getForwardedOrigin(request)
-
   const configured = [
     normalizeBaseUrl(process.env.SITE_URL),
     normalizeBaseUrl(process.env.APP_URL),
     normalizeBaseUrl(process.env.NEXT_PUBLIC_SITE_URL),
   ].filter(Boolean)
 
+  // Always prefer a configured, non-localhost URL.
   const preferredConfigured = configured.find((url) => !isLocalhostUrl(url))
-  const preferredForwarded = forwardedOrigin && !isLocalhostUrl(forwardedOrigin) ? forwardedOrigin : ''
-  const preferredRequest = requestOrigin && !isLocalhostUrl(requestOrigin) ? requestOrigin : ''
+  if (preferredConfigured) return preferredConfigured
 
-  return (
-    preferredConfigured ||
-    preferredForwarded ||
-    preferredRequest ||
-    forwardedOrigin ||
-    requestOrigin ||
-    configured[0]
-  )
+  // SECURITY: in production, NEVER derive auth-link base URLs from request
+  // headers (Host / X-Forwarded-Host are attacker-controllable → link
+  // poisoning / token theft). Require a configured SITE_URL/APP_URL in prod.
+  if (process.env.NODE_ENV === 'production') return configured[0] || ''
+
+  // Dev convenience only: fall back to the request/forwarded origin.
+  const forwardedOrigin = getForwardedOrigin(request)
+  const requestOrigin = normalizeBaseUrl(new URL(request.url).origin)
+  return forwardedOrigin || requestOrigin || configured[0] || ''
 }

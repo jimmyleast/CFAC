@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
-import { getAdminClient } from '@/lib/admin'
+import { getAdminClient, checkIsAdmin } from '@/lib/admin'
 import { getRequestUser } from '@/lib/auth/requestUser'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024 // 10 MB
+const MAX_DATA_ROWS = 50_000
+const ALLOWED_EXT = ['.xlsx', '.xls', '.csv']
 
 function slugifyKey(h: string) {
   return h.toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
@@ -19,6 +23,10 @@ function toNum(v: any): number | null {
 export async function POST(req: Request) {
   const user = await getRequestUser(req)
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Importing writes via the service-role client (bypasses RLS) — admin only.
+  if (!(await checkIsAdmin(user.id, user.email || ''))) {
+    return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+  }
 
   const form = await req.formData().catch(() => null)
   if (!form) return NextResponse.json({ error: 'Expected multipart form data' }, { status: 400 })
@@ -29,6 +37,14 @@ export async function POST(req: Request) {
   const periodLabelInput = String(form.get('periodLabel') || '').trim()
   if (!file) return NextResponse.json({ error: 'No file uploaded' }, { status: 400 })
   if (!sourceSlug) return NextResponse.json({ error: 'sourceSlug required' }, { status: 400 })
+  // Validate upload: size + extension (defends against memory/CPU DoS).
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return NextResponse.json({ error: `File too large (max ${MAX_UPLOAD_BYTES / 1024 / 1024} MB)` }, { status: 413 })
+  }
+  const lowerName = (file.name || '').toLowerCase()
+  if (!ALLOWED_EXT.some(ext => lowerName.endsWith(ext))) {
+    return NextResponse.json({ error: `Unsupported file type. Allowed: ${ALLOWED_EXT.join(', ')}` }, { status: 415 })
+  }
 
   const admin = getAdminClient()
   const { data: src, error: srcErr } = await admin.from('data_sources').select('id').eq('slug', sourceSlug).maybeSingle()
@@ -53,6 +69,9 @@ export async function POST(req: Request) {
   if (hi < 0) hi = 0
   const header = rows[hi].map(c => String(c).trim())
   const dataRows = rows.slice(hi + 1).filter(r => r.some(c => String(c).trim()))
+  if (dataRows.length > MAX_DATA_ROWS) {
+    return NextResponse.json({ error: `Too many rows (${dataRows.length}); max ${MAX_DATA_ROWS}` }, { status: 413 })
+  }
 
   // period column
   let periodIdx = -1

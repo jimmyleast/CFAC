@@ -105,29 +105,3 @@ export interface UserProfile {
   updated_at: string
 }
 
-export interface Squad {
-  id: string
-  name: string
-  description: string | null
-  area: string | null
-  color: string
-  created_by: string | null
-  created_at: string
-  updated_at: string
-  member_count?: number
-}
-
-export interface SquadMember {
-  id: string
-  squad_id: string
-  user_id: string
-  role: 'lead' | 'member'
-  created_at: string
-  user?: UserProfile
-  squad?: Squad
-}
-
-export interface ProcessWithSquad extends Process {
-  squad_id: string | null
-  squad?: Squad | null
-}

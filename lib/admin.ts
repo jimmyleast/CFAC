@@ -43,30 +43,13 @@ export async function upsertUserProfile(
 }
 
 /**
- * Returns whether a given user ID has platform-level access.
- * True for: ADMIN_EMAILS list, user_profiles.is_admin, OR
- * technology/executive team membership (canSeeAll).
+ * Returns whether a given user has platform admin access.
+ * Admin = email in the ADMIN_EMAILS/ADMIN_EMAIL env list, OR user_profiles.is_admin.
  */
 export async function checkIsAdmin(userId: string, email: string): Promise<boolean> {
   if (isAdminEmail(email)) return true
   const adminClient = getAdminClient()
-  const [{ data: profile }, { data: memberships }] = await Promise.all([
-    adminClient.from('user_profiles').select('is_admin').eq('id', userId).single(),
-    adminClient.from('team_members').select('teams(slug)').eq('user_id', userId),
-  ])
-  if (profile?.is_admin === true) return true
-  const slugs = (memberships || []).map((m: any) => m.teams?.slug).filter(Boolean)
-  return slugs.includes('technology') || slugs.includes('executive')
-}
-
-/**
- * Returns the squad IDs the given user belongs to.
- */
-export async function getUserSquadIds(userId: string): Promise<string[]> {
-  const adminClient = getAdminClient()
-  const { data } = await adminClient
-    .from('squad_members')
-    .select('squad_id')
-    .eq('user_id', userId)
-  return (data || []).map((r: any) => r.squad_id)
+  const { data: profile } = await adminClient
+    .from('user_profiles').select('is_admin').eq('id', userId).single()
+  return profile?.is_admin === true
 }
