@@ -149,3 +149,10 @@ test-results/
 # Supabase local backups
 supabase/local_backup_*.sql
 supabase/staging_backup_*.sql
+
+# next-pwa generated service worker (build artifacts)
+public/sw.js
+public/sw.js.map
+public/workbox-*.js
+public/workbox-*.js.map
+public/fallback-*.js
