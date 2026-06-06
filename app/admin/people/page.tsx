@@ -130,7 +130,7 @@ function InviteModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'grid', placeItems: 'center', zIndex: 100 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: '#141416', border: `1px solid ${LINE}`, borderRadius: 12, padding: 24, width: 380, maxWidth: '90vw' }}>
         <h2 style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 20, color: TEXT, margin: '0 0 6px' }}>Invite someone</h2>
-        <p style={{ color: TEXT2, fontSize: 13, margin: '0 0 16px' }}>They'll get an email with a magic link to sign in.</p>
+        <p style={{ color: TEXT2, fontSize: 13, margin: '0 0 16px' }}>They&apos;ll get an email with a magic link to sign in.</p>
         <input value={email} onChange={e => setEmail(e.target.value)} type="email" placeholder="colleague@cfacbentonco.com"
           style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: `1px solid ${LINE}`, borderRadius: 8, padding: '10px 12px', color: TEXT, fontSize: 14, marginBottom: 14 }} />
         {msg && <div style={{ color: WARN, fontSize: 13, marginBottom: 12 }}>{msg}</div>}
