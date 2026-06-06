@@ -1,4 +1,4 @@
-import { getAdminClient, isAdminEmail } from '@/lib/admin'
+import { isAdminEmail } from '@/lib/admin'
 
 export type UserRole = 'student' | 'staff' | 'admin' | 'developer'
 
@@ -13,28 +13,14 @@ export function isValidRole(role: string): role is UserRole {
   return VALID_ROLES.includes(role as UserRole)
 }
 
-export async function getUserRole(userId: string, _email: string): Promise<UserRole | null> {
-  const adminClient = getAdminClient()
-  const { data } = await adminClient
-    .from('uhp_user_roles')
-    .select('role')
-    .eq('id', userId)
-    .single()
-
-  if (data?.role && isValidRole(data.role)) return data.role
-  return null
+export async function getUserRole(_userId: string, email: string): Promise<UserRole | null> {
+  // CFAC v1: derive role from email (ADMIN_EMAILS / DEVELOPER_EMAILS env).
+  // Admin is also enforced via user_profiles.is_admin in lib/admin.
+  return inferDefaultRole(email)
 }
 
-export async function setUserRole(userId: string, email: string, role: UserRole): Promise<void> {
-  const adminClient = getAdminClient()
-  await adminClient
-    .from('uhp_user_roles')
-    .upsert({
-      id: userId,
-      role,
-      email: email.toLowerCase(),
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'id' })
+export async function setUserRole(_userId: string, _email: string, _role: UserRole): Promise<void> {
+  // No-op in v1: roles are derived from env + user_profiles.is_admin, not a roles table.
 }
 
 export function inferDefaultRole(email: string): UserRole {

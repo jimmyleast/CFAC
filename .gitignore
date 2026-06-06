@@ -156,3 +156,6 @@ public/sw.js.map
 public/workbox-*.js
 public/workbox-*.js.map
 public/fallback-*.js
+
+# Private CFAC source data (sensitive — never commit)
+/_private/

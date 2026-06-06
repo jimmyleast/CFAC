@@ -27,17 +27,11 @@ export async function GET(
     .eq('team_id', team.id)
     .order('role')
 
-  const { data: rules } = await adminClient
-    .from('notification_rules')
-    .select('*')
-    .eq('team_id', team.id)
-    .order('event_type')
-
   const { data: lead } = team.lead_user_id
     ? await adminClient.from('user_profiles').select('id, display_name, email').eq('id', team.lead_user_id).single()
     : { data: null }
 
-  return NextResponse.json({ ...team, lead, members: members || [], notification_rules: rules || [] })
+  return NextResponse.json({ ...team, lead, members: members || [] })
 }
 
 export async function PATCH(
