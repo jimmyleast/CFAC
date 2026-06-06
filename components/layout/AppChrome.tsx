@@ -90,8 +90,8 @@ function AppShell({ children }: { children: React.ReactNode }) {
       ) : (
         <NavDrawer
           sections={navSections}
-          teamSlug={teamContext?.teamSlug || 'technology'}
-          teamName={teamContext?.teamName || 'Technology'}
+          teamSlug={teamContext?.teamSlug || 'cfac'}
+          teamName={teamContext?.teamName || 'CFAC'}
           userName={userName}
           userInitials={initials}
           isAllTeams={isAllTeams}
