@@ -159,3 +159,4 @@ public/fallback-*.js
 
 # Private CFAC source data (sensitive — never commit)
 /_private/
+supabase/.temp/

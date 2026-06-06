@@ -2,7 +2,7 @@ import { Resend } from 'resend'
 import type { CreateEmailOptions } from 'resend'
 import { isEmailSendingEnabled } from '@/lib/email-control'
 
-export const DEFAULT_FROM = process.env.RESEND_FROM_EMAIL || 'auth@uhp.com'
+export const DEFAULT_FROM = process.env.RESEND_FROM_EMAIL || 'noreply@cfacbentonco.com'
 
 /**
  * Encode a real email address for use in a + alias.
@@ -15,7 +15,7 @@ function encodeRecipient(email: string): string {
 /**
  * In development, redirect all outbound email to ADMIN_EMAIL using + addressing.
  * The real recipient is encoded in the local part so you can see who it was for.
- * e.g. student@gmail.com → joaquim+student_at_gmail_com@uhp.com
+ * e.g. student@gmail.com → joaquim+student_at_gmail_com@cfacbentonco.com
  */
 function applyDevRedirect(
   to: string | string[],

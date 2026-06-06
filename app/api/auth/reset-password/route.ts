@@ -77,11 +77,11 @@ export async function POST(request: Request) {
 
     const emailResult = await sendEmail({
       to: normalizedEmail,
-      subject: 'Reset your UHP OPS password',
+      subject: 'Reset your CFAC password',
       html: `
         <div style="background:#0A0A0A;padding:40px 24px;font-family:'DM Sans',Arial,sans-serif;color:#F0EDE6;">
           <div style="max-width:520px;margin:0 auto;background:#111111;border:1px solid #2A2A2A;padding:32px;">
-            <h1 style="margin:0 0 6px;font-size:32px;line-height:1;color:#F0EDE6;font-family:'Barlow Condensed',Arial,sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">UHP OPS</h1>
+            <h1 style="margin:0 0 6px;font-size:32px;line-height:1;color:#F0EDE6;font-family:'Barlow Condensed',Arial,sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">CFAC</h1>
             <p style="margin:0 0 28px;color:#8A8680;font-size:11px;text-transform:uppercase;letter-spacing:0.1em;">Operations Platform</p>
             <p style="margin:0 0 24px;color:#F0EDE6;font-size:15px;">Click the button below to set a new password.</p>
             <a href="${appLink}" style="display:inline-block;background:#FFFFFF;color:#0A0A0A;text-decoration:none;font-weight:700;padding:14px 28px;font-size:13px;font-family:'Barlow Condensed',Arial,sans-serif;text-transform:uppercase;letter-spacing:0.08em;">Reset Password</a>

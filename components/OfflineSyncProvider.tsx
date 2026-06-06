@@ -13,12 +13,12 @@ type QueuedMutation = {
   lastError?: string
 }
 
-const STORAGE_KEY = 'uhp-offline-mutation-queue-v1'
-const REPLAY_HEADER = 'x-uhp-offline-replay'
+const STORAGE_KEY = 'cfac-offline-mutation-queue-v1'
+const REPLAY_HEADER = 'x-cfac-offline-replay'
 
 declare global {
   interface Window {
-    __uhpOfflineFetchPatched?: boolean
+    __cfacOfflineFetchPatched?: boolean
   }
 }
 
@@ -31,8 +31,8 @@ export default function OfflineSyncProvider() {
     setOnline(navigator.onLine)
     setPending(readQueue().length)
 
-    if (!window.__uhpOfflineFetchPatched) {
-      window.__uhpOfflineFetchPatched = true
+    if (!window.__cfacOfflineFetchPatched) {
+      window.__cfacOfflineFetchPatched = true
       patchFetch()
     }
 
@@ -55,7 +55,7 @@ export default function OfflineSyncProvider() {
 
     window.addEventListener('online', sync)
     window.addEventListener('offline', updateStatus)
-    window.addEventListener('uhp-offline-queue-changed', updateStatus)
+    window.addEventListener('cfac-offline-queue-changed', updateStatus)
 
     void sync()
     const timer = window.setInterval(sync, 30000)
@@ -63,7 +63,7 @@ export default function OfflineSyncProvider() {
     return () => {
       window.removeEventListener('online', sync)
       window.removeEventListener('offline', updateStatus)
-      window.removeEventListener('uhp-offline-queue-changed', updateStatus)
+      window.removeEventListener('cfac-offline-queue-changed', updateStatus)
       window.clearInterval(timer)
     }
   }, [])
@@ -160,7 +160,7 @@ function queueMutation(input: RequestInfo | URL, init?: RequestInit, lastError?:
   }
 
   writeQueue([...readQueue(), queueItem])
-  window.dispatchEvent(new Event('uhp-offline-queue-changed'))
+  window.dispatchEvent(new Event('cfac-offline-queue-changed'))
   return queueItem
 }
 
@@ -192,7 +192,7 @@ async function replayQueue() {
   }
 
   writeQueue(remaining)
-  window.dispatchEvent(new Event('uhp-offline-queue-changed'))
+  window.dispatchEvent(new Event('cfac-offline-queue-changed'))
 }
 
 function readQueue(): QueuedMutation[] {
@@ -227,7 +227,7 @@ function queuedResponse(item: QueuedMutation) {
     status: 202,
     headers: {
       'Content-Type': 'application/json',
-      'x-uhp-offline-queued': 'true',
+      'x-cfac-offline-queued': 'true',
     },
   })
 }

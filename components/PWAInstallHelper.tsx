@@ -7,7 +7,7 @@ type BeforeInstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>
 }
 
-const DISMISS_KEY = 'uhp-ops-pwa-install-dismissed-session-v1'
+const DISMISS_KEY = 'cfac-pwa-install-dismissed-session-v1'
 
 function isStandalone() {
   if (typeof window === 'undefined') return false

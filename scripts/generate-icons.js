@@ -8,7 +8,7 @@ for (const size of sizes) {
       dominant-baseline="middle">&#x2715;</text>
     <text x="50%" y="68%" font-family="Arial" font-weight="800"
       font-size="${size * 0.18}px" fill="white" text-anchor="middle"
-      dominant-baseline="middle">UHP</text>
+      dominant-baseline="middle">CFAC</text>
   </svg>`;
   sharp(Buffer.from(svg)).png().toFile(`public/icons/icon-${size}.png`)
     .then(() => console.log(`Generated icon-${size}.png`))

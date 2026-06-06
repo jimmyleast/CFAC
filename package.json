@@ -8,32 +8,20 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test:e2e": "playwright test",
-    "test:e2e:headed": "playwright test --headed",
-    "test:e2e:report": "playwright show-report",
-    "test:e2e:smoke": "playwright test smoke.spec.ts",
-    "test:e2e:contracts": "playwright test contracts.spec.ts",
-    "test:e2e:auth": "playwright test authenticated.spec.ts",
-    "test:e2e:perf": "playwright test performance.spec.ts",
-    "test:e2e:validation": "playwright test validation.spec.ts",
-    "test:e2e:mobile": "playwright test --project=mobile-chrome --project=mobile-safari",
-    "test:e2e:desktop": "playwright test --project=chromium",
-    "verify:strict": "npm run lint && npm run build && playwright test --repeat-each=3",
-    "verify:comprehensive": "npm run lint && npm run build && npm run test:e2e:smoke && npm run test:e2e:contracts && npm run test:e2e:auth && npm run test:e2e:perf && npm run test:e2e:validation",
-    "verify:ci": "npm run lint && npm run build && playwright test --reporter=json,html"
+    "verify": "npm run lint && npm run build"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jimmyleast/UHP-OPS-Agent.git"
+    "url": "git+https://github.com/jimmyleast/CFAC.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "bugs": {
-    "url": "https://github.com/jimmyleast/UHP-OPS-Agent/issues"
+    "url": "https://github.com/jimmyleast/CFAC/issues"
   },
-  "homepage": "https://github.com/jimmyleast/UHP-OPS-Agent#readme",
+  "homepage": "https://github.com/jimmyleast/CFAC#readme",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",
     "@react-pdf/renderer": "^4.1.5",
@@ -45,7 +33,6 @@
     "@types/react-dom": "^19.2.3",
     "autoprefixer": "^10.4.27",
     "docx": "^9.6.1",
-    "googleapis": "^171.4.0",
     "jsonrepair": "^3.13.3",
     "jszip": "^3.10.1",
     "lucide-react": "^1.17.0",
@@ -58,7 +45,6 @@
     "react-dom": "^18.3.1",
     "resend": "^6.9.4",
     "tailwindcss": "^3.4.19",
-    "twilio": "^5.3.0",
     "typescript": "^6.0.2",
     "web-push": "^3.6.7",
     "xlsx": "^0.18.5"
