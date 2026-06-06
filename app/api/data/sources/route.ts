@@ -1,0 +1,37 @@
+import { NextResponse } from 'next/server'
+import { getAdminClient } from '@/lib/admin'
+import { getRequestUser } from '@/lib/auth/requestUser'
+
+export const dynamic = 'force-dynamic'
+
+export async function GET(req: Request) {
+  const user = await getRequestUser(req)
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const admin = getAdminClient()
+  const [{ data: sources, error: srcErr }, { data: metricRows }, { data: issueRows }] = await Promise.all([
+    admin.from('data_sources').select('id, name, slug, kind, description, last_imported_at, teams(name, slug)').order('name'),
+    admin.from('metrics').select('source_id'),
+    admin.from('import_rows').select('source_id, status'),
+  ])
+  if (srcErr) return NextResponse.json({ error: srcErr.message }, { status: 500 })
+
+  const metricCount: Record<string, number> = {}
+  for (const m of metricRows || []) if (m.source_id) metricCount[m.source_id] = (metricCount[m.source_id] || 0) + 1
+  const issueCount: Record<string, number> = {}
+  for (const r of issueRows || []) if (r.source_id && r.status !== 'ok') issueCount[r.source_id] = (issueCount[r.source_id] || 0) + 1
+
+  const out = (sources || []).map((s: any) => ({
+    id: s.id,
+    name: s.name,
+    slug: s.slug,
+    kind: s.kind,
+    description: s.description,
+    team: s.teams?.name || null,
+    lastImportedAt: s.last_imported_at,
+    metricCount: metricCount[s.id] || 0,
+    issueCount: issueCount[s.id] || 0,
+  }))
+
+  return NextResponse.json({ sources: out })
+}
