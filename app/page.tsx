@@ -123,10 +123,10 @@ export default function LandingPage() {
           lineHeight: 0.95, letterSpacing: '0.02em',
           textTransform: 'uppercase', marginBottom: 12,
         }}>
-          Unlock Human Potential
+          Children &amp; Family Advocacy Center
         </h1>
         <p style={{ fontSize: 15, color: '#8A8680', maxWidth: 480, margin: '0 auto', lineHeight: 1.6 }}>
-          Veteran-focused trade education. Ask Morgan anything about our programs, campus, or how to get started.
+          Restoring the lives of children who have experienced abuse. Ask anything about our programs, services, or how to get help.
         </p>
       </div>
 

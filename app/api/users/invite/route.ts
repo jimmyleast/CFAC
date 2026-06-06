@@ -47,18 +47,18 @@ export async function POST(req: Request) {
   // Send invite via Resend
   try {
     await sendEmail({
-      from: `UHP Ops <${process.env.RESEND_FROM_EMAIL || 'auth@uhp.com'}>`,
+      from: `CFAC <${process.env.RESEND_FROM_EMAIL || 'noreply@cfacbentonco.com'}>`,
       to: email,
-      subject: `You've been invited to UHP`,
+      subject: `You've been invited to CFAC`,
       html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
-        <div style="background:#0A0A0A;padding:24px;border-left:4px solid #1AAFA0">
+        <div style="background:#0A0A0A;padding:24px;border-left:4px solid #C9A84C">
           <h1 style="color:#FFFFFF;margin:0;font-family:'Barlow Condensed',Arial;font-size:22px;text-transform:uppercase;letter-spacing:0.05em">
-            UNLOCK HUMAN POTENTIAL
+            Children &amp; Family Advocacy Center
           </h1>
         </div>
         <div style="padding:24px;background:#141416;border:1px solid #222">
           <p style="color:#D7D3CC;font-size:15px;line-height:1.6;margin:0 0 16px">
-            ${name ? `Hey ${name}, you` : 'You'}'ve been added to the UHP platform${teamName ? ` as <strong style="color:#fff">${role || 'member'}</strong> on the <strong style="color:#fff">${teamName}</strong> team` : ''}.
+            ${name ? `Hey ${name}, you` : 'You'}'ve been added to the CFAC platform${teamName ? ` as <strong style="color:#fff">${role || 'member'}</strong> on the <strong style="color:#fff">${teamName}</strong> team` : ''}.
           </p>
           ${title ? `<p style="color:#8A8680;font-size:13px;margin:0 0 16px">Title: ${title}</p>` : ''}
           <p style="color:#D7D3CC;font-size:15px;line-height:1.6;margin:0 0 24px">
