@@ -3,8 +3,6 @@ import { Barlow_Condensed, DM_Sans, JetBrains_Mono } from 'next/font/google'
 import AppChrome from '@/components/layout/AppChrome'
 import PageBackground from '@/components/layout/PageBackground'
 import HopeDock from '@/components/layout/HopeDock'
-// Hidden 2026-05-30: bell shows but nothing reads notifications today. Write paths still active.
-// import NotificationsDock from '@/components/layout/NotificationsDock'
 import PWAInstallHelper from '@/components/PWAInstallHelper'
 import OfflineSyncProvider from '@/components/OfflineSyncProvider'
 import './globals.css'
@@ -70,7 +68,6 @@ export default function RootLayout({
       <body>
         <PageBackground />
         <AppChrome>{children}</AppChrome>
-        {/* <NotificationsDock /> */}
         <HopeDock />
         <PWAInstallHelper />
         <OfflineSyncProvider />

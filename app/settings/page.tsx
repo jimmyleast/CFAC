@@ -4,10 +4,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 const ROLE_LABELS: Record<string, string> = {
-  student: 'Student / Trainee',
-  staff: 'Instructor / Staff',
-  admin: 'Leadership / Admin',
-  developer: 'Developer / Tech',
+  staff: 'Staff',
+  admin: 'Administrator',
 }
 
 export default function SettingsPage() {

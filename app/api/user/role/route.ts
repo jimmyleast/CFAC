@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   const role = typeof body.role === 'string' ? body.role.toLowerCase() : ''
 
   if (!isValidRole(role)) {
-    return NextResponse.json({ error: 'Invalid role. Must be: student, staff, admin, or developer' }, { status: 400 })
+    return NextResponse.json({ error: 'Invalid role. Must be: staff or admin' }, { status: 400 })
   }
 
   await setUserRole(user.id, user.email || '', role)

@@ -70,7 +70,7 @@ export default function HopeDock() {
     }).catch(() => {})
   }, [])
 
-  const hidden = !pathname || pathname === '/' || pathname.startsWith('/auth') || pathname === '/onboarding' || pathname === '/hub' || pathname.startsWith('/intake/') || pathname.startsWith('/work-orders/submit/') || pathname.startsWith('/student')
+  const hidden = !pathname || pathname === '/' || pathname.startsWith('/auth') || pathname === '/hub'
 
   useEffect(() => {
     if (threadRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight
@@ -204,8 +204,7 @@ export default function HopeDock() {
     if (!message.card?.actionId || cardBusy) return
     setCardBusy(true)
     try {
-      const endpoint = message.card.type === 'ops_action_preview' ? '/api/hope/ops-model' : '/api/hope/inventory/confirm'
-      const res = await authFetch(endpoint, {
+      const res = await authFetch('/api/hope/confirm', {
         method: 'POST',
         body: JSON.stringify({ actionId: message.card.actionId, decision }),
       })

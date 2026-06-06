@@ -6,7 +6,7 @@ export const DEFAULT_FROM = process.env.RESEND_FROM_EMAIL || 'noreply@cfacbenton
 
 /**
  * Encode a real email address for use in a + alias.
- * student@gmail.com → student_at_gmail_com
+ * person@example.com → person_at_example_com
  */
 function encodeRecipient(email: string): string {
   return email.replace('@', '_at_').replace(/\./g, '_')
@@ -15,7 +15,7 @@ function encodeRecipient(email: string): string {
 /**
  * In development, redirect all outbound email to ADMIN_EMAIL using + addressing.
  * The real recipient is encoded in the local part so you can see who it was for.
- * e.g. student@gmail.com → joaquim+student_at_gmail_com@cfacbentonco.com
+ * e.g. person@example.com → admin+person_at_example_com@cfacbentonco.com
  */
 function applyDevRedirect(
   to: string | string[],

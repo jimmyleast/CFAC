@@ -6,7 +6,7 @@ import * as Icons from 'lucide-react'
 import NavDrawer from './NavDrawer'
 import { useTeamNav } from '@/hooks/useTeamNav'
 
-type UserRole = 'student' | 'staff' | 'admin' | 'developer' | null
+type UserRole = 'admin' | 'staff' | null
 
 export default function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -36,9 +36,6 @@ export default function AppChrome({ children }: { children: React.ReactNode }) {
     if (pathname === '/') return true
     if (pathname === '/hub') return true
     if (pathname.startsWith('/auth')) return true
-    if (pathname.startsWith('/intake/')) return true
-    if (pathname.startsWith('/work-orders/submit/')) return true
-    if (pathname.startsWith('/student/') || pathname === '/student') return true
     return false
   }, [pathname])
 
