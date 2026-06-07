@@ -37,6 +37,7 @@ export default function ScorecardPage() {
   const [adding, setAdding] = useState(false)
   const [draft, setDraft] = useState({ name: '', owner: '', goalValue: '', goalDirection: 'at_least', metricKey: '' })
   const [busy, setBusy] = useState(false)
+  const [editing, setEditing] = useState<{ id: string; value: string; dir: 'at_least' | 'at_most' } | null>(null)
 
   async function load() {
     setLoading(true); setErr(null)
@@ -68,6 +69,17 @@ export default function ScorecardPage() {
     try {
       const res = await authFetch(`/api/scorecard?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
       if (!res.ok) { const e = await res.json().catch(() => ({})); alert(e.error || `Failed (${res.status})`) } else await load()
+    } finally { setBusy(false) }
+  }
+  async function patchGoal(id: string, goalValue: number | null, goalDirection: 'at_least' | 'at_most') {
+    setBusy(true)
+    try {
+      const res = await authFetch('/api/scorecard', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, goalValue, goalDirection }),
+      })
+      if (!res.ok) { const e = await res.json().catch(() => ({})); alert(e.error || `Failed (${res.status})`) }
+      else { setEditing(null); await load() }
     } finally { setBusy(false) }
   }
 
@@ -135,11 +147,34 @@ export default function ScorecardPage() {
                       {r.component && <span style={{ marginLeft: 8, fontSize: 11, color: TEXT4 }}>{r.component}</span>}
                     </td>
                     <td style={{ ...td(), color: TEXT2 }}>{r.owner || '—'}</td>
-                    <td style={{ ...td(), color: TEXT2 }}>{r.goal === null ? '—' : `${r.goalDirection === 'at_most' ? '≤' : '≥'} ${fmt(r.goal)}`}</td>
+                    <td style={{ ...td(), color: TEXT2 }}>
+                      {editing?.id === r.id ? (
+                        <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
+                          <select value={editing.dir} onChange={(e) => setEditing({ ...editing, dir: e.target.value as 'at_least' | 'at_most' })} style={{ ...inp(0, 52), padding: '4px 6px' }}>
+                            <option value="at_least">≥</option><option value="at_most">≤</option>
+                          </select>
+                          <input autoFocus value={editing.value} onChange={(e) => setEditing({ ...editing, value: e.target.value })} inputMode="decimal" placeholder="goal"
+                            onKeyDown={(e) => { if (e.key === 'Enter') void patchGoal(r.id, editing.value ? Number(editing.value) : null, editing.dir); if (e.key === 'Escape') setEditing(null) }}
+                            style={{ ...inp(0, 64), padding: '4px 6px' }} />
+                          <button disabled={busy} onClick={() => patchGoal(r.id, editing.value ? Number(editing.value) : null, editing.dir)} style={{ background: GOLD, color: '#0D0D0F', border: 'none', borderRadius: 6, padding: '4px 8px', fontSize: 12, cursor: 'pointer' }}>✓</button>
+                          <button onClick={() => setEditing(null)} style={{ background: 'none', border: 'none', color: TEXT4, cursor: 'pointer' }}>✕</button>
+                        </span>
+                      ) : isAdmin ? (
+                        <button onClick={() => setEditing({ id: r.id, value: r.goal === null ? '' : String(r.goal), dir: r.goalDirection })} title="Set goal"
+                          style={{ background: 'none', border: 'none', color: r.goal === null ? GOLD : TEXT2, cursor: 'pointer', fontSize: 13, padding: 0, textDecoration: r.goal === null ? 'underline' : 'none' }}>
+                          {r.goal === null ? 'set goal' : `${r.goalDirection === 'at_most' ? '≤' : '≥'} ${fmt(r.goal)}`}
+                        </button>
+                      ) : (
+                        r.goal === null ? '—' : `${r.goalDirection === 'at_most' ? '≤' : '≥'} ${fmt(r.goal)}`
+                      )}
+                    </td>
                     {periods.map((p) => {
                       const v = byPeriod.get(p)
-                      const on = v !== undefined && r.goal !== null && (r.goalDirection === 'at_most' ? v <= r.goal : v >= r.goal)
-                      return <td key={p} style={{ ...td(), textAlign: 'right', color: v === undefined ? TEXT4 : on ? ON : OFF, fontWeight: v === undefined ? 400 : 600 }}>{v === undefined ? '·' : fmt(v)}</td>
+                      const g = r.goal
+                      const on = v !== undefined && g !== null && (r.goalDirection === 'at_most' ? v <= g : v >= g)
+                      // No goal set → show the actual in a neutral color (don't imply off-track).
+                      const color = v === undefined ? TEXT4 : g === null ? TEXT : on ? ON : OFF
+                      return <td key={p} style={{ ...td(), textAlign: 'right', color, fontWeight: v === undefined ? 400 : 600 }}>{v === undefined ? '·' : fmt(v)}</td>
                     })}
                     {isAdmin && <td style={{ ...td(), textAlign: 'right' }}><button disabled={busy} onClick={() => remove(r.id)} style={{ background: 'none', border: 'none', color: TEXT4, cursor: 'pointer', fontSize: 13 }}>✕</button></td>}
                   </tr>

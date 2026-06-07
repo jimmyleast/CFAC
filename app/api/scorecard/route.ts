@@ -75,6 +75,32 @@ export async function POST(req: Request) {
   return NextResponse.json({ ok: true })
 }
 
+// PATCH = set a goal/owner/direction on an EXISTING measurable (admin). Used to
+// set targets on auto-loaded measurables without delete-and-recreate (which would
+// drop the metric_key link). Only the provided fields are updated.
+export async function PATCH(req: Request) {
+  const gate = await requireAdmin(req)
+  if ('response' in gate) return gate.response
+  const body = await req.json().catch(() => ({})) as { id?: string; owner?: string; goalValue?: number | null; goalDirection?: string }
+  const id = String(body.id || '').trim()
+  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+
+  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  if ('owner' in body) patch.owner = String(body.owner || '').slice(0, 120) || null
+  if ('goalValue' in body) patch.goal_value = typeof body.goalValue === 'number' && Number.isFinite(body.goalValue) ? body.goalValue : null
+  if ('goalDirection' in body && DIRECTIONS.has(String(body.goalDirection))) patch.goal_direction = String(body.goalDirection)
+  if (Object.keys(patch).length === 1) return NextResponse.json({ error: 'nothing to update' }, { status: 400 })
+
+  const { data, error } = await getAdminClient().from('scorecard_metrics').update(patch).eq('id', id).select('id').maybeSingle()
+  if (error) {
+    await emitAppEvent({ eventName: 'scorecard.changed', category: 'error', userId: gate.user.id, route: '/api/scorecard', status: 'update_failed', metadata: { error: error.message.slice(0, 200) } }).catch(() => {})
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+  if (!data) return NextResponse.json({ error: 'not found' }, { status: 404 })
+  await emitAppEvent({ eventName: 'scorecard.changed', category: 'system', userId: gate.user.id, route: '/api/scorecard', status: 'updated', metadata: {} }).catch(() => {})
+  return NextResponse.json({ ok: true })
+}
+
 export async function DELETE(req: Request) {
   const gate = await requireAdmin(req)
   if ('response' in gate) return gate.response
