@@ -48,6 +48,7 @@ export default function AppChrome({ children }: { children: React.ReactNode }) {
     if (pathname === '/hub') return true
     if (pathname.startsWith('/auth')) return true
     if (pathname === '/connect' || pathname.startsWith('/connect/')) return true
+    if (pathname.startsWith('/export/')) return true
     return false
   }, [pathname])
 

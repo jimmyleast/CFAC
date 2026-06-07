@@ -78,6 +78,18 @@ export default function ExecutivePage() {
     return () => { active = false }
   }, [])
 
+  async function downloadCsv() {
+    const res = await authFetch('/api/export/metrics')
+    if (!res.ok) { setErr(`Export failed (${res.status})`); return }
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `cfac-metrics-${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(a); a.click(); a.remove()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto', padding: '40px 24px' }}>
       <div style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: GOLD, marginBottom: 8 }}>Executive</div>
@@ -88,6 +100,14 @@ export default function ExecutivePage() {
           <button onClick={() => askHope('Build me a custom report from CFAC data. Ask me what to include if you need to.')}
             style={{ background: 'rgba(91,163,217,0.12)', border: `1px solid ${GOLD}`, color: GOLD, borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
             ✦ Ask Hope to build a report
+          </button>
+          <button onClick={() => router.push('/export/board')}
+            style={{ background: 'none', border: `1px solid ${LINE}`, color: TEXT2, borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            Board report
+          </button>
+          <button onClick={() => downloadCsv()}
+            style={{ background: 'none', border: `1px solid ${LINE}`, color: TEXT2, borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            Export CSV
           </button>
         </div>
       </div>
