@@ -69,3 +69,17 @@ This single app registration unlocks the 12 reporting spreadsheets, the encrypte
 3. I wire each into the broker as its credentials land. Nothing here touches client PHI — that stays gated behind the Supabase HIPAA add-on + BAAs (see `INTEGRATION-ARCHITECTURE.md` §5).
 
 When you've done #1 (or just have the three values), paste the **IDs only** here (keep secrets for Railway) and tell me, and I'll light up the first real data pull.
+
+---
+
+## Operator runbook — the connector encryption key is WRITE-ONCE
+
+Every connector credential is sealed with one key (AES-256-GCM). When no `CONNECTOR_ENC_KEY` env is set, that key auto-provisions into the DB as `platform_secrets.connector_enc` (zero-config soft launch). **Changing or deleting that row orphans every sealed credential, permanently** — the ciphertext can never be decrypted again. So a DB trigger makes the row write-once: any `UPDATE`/`DELETE` of it fails.
+
+**If you see SQLSTATE `WO001` / `"connector_enc is write-once"` in the Postgres logs or a query error — STOP.** It means something tried to mutate or delete the master key. This is the guard working, not a bug to route around. Do **not** disable the trigger and do **not** retry the write; doing so destroys all stored connector credentials with no recovery.
+
+Legitimate changes:
+- **Harden off the DB key (recommended before PHI):** set `CONNECTOR_ENC_KEY` in Railway (env always wins over the DB row). No DB write needed — the write-once row is simply ignored. See `PHI-INFRA-CHECKLIST.md` §3.
+- **Rotate the key:** insert a NEW versioned row (e.g. `connector_enc_v2`) and run a re-encrypt step that re-wraps existing ciphertext under it — never mutate `connector_enc` in place. (Re-encrypt tooling is a future task; the guard intentionally blocks in-place rotation until it exists.)
+
+Migration: `supabase/migrations/20260607070000_platform_secrets_immutable.sql`. To verify the guard on a fresh DB, paste `supabase/migrations/20260607070000_platform_secrets_immutable.test.sql` into the SQL editor — it asserts the row is immutable and rolls back, leaving no data behind.
