@@ -44,6 +44,7 @@ A signed BAA is required with every vendor that could touch PHI. **Send each ven
 - Hope's grounding catalog selects **only** aggregate metric columns — never `import_rows.raw`, `metrics.dimension` free-text, or any client table.
 - System prompt + the independent cross-model critique both forbid emitting client PII.
 - When client-PII tables arrive: store identifiers in a restricted table behind stricter RLS; expose only de-identified case IDs + aggregates to the metrics/dashboard layer; add a redaction layer between the DB and any LLM call.
+- **File uploads (connect portal):** the import pipeline runs `redactPHI` over every verbatim cell before it lands in `import_rows.raw` (strips email/SSN/DOB/phone/address — defense-in-depth). The upload UI requires an explicit **non-PHI acknowledgment** and warns that case-level exports (Collaborate client data, MDT, forensic/medical/MH records) must NOT be uploaded until the §5 HIPAA infra is in place. Redaction does NOT catch free-text names, so the acknowledgment + the §5 gate remain the real control for case data.
 
 ## 5. PHI gate (required before any client-PII table is created)
 1. BAAs signed with every subprocessor in the data path (§2).

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { getAdminClient, checkIsAdmin } from '@/lib/admin'
 import { getRequestAuth } from '@/lib/auth/requestUser'
+import { redactPHI } from '@/lib/compliance/phi'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -90,7 +91,10 @@ export async function POST(req: Request) {
     const rawObj: Record<string, any> = {}
     let added = 0
     header.forEach((h, i) => {
-      rawObj[h || `col${i}`] = r[i]
+      // Defense-in-depth: strip structured PII (email/SSN/DOB/phone/address) from
+      // verbatim cells before they land in import_rows.raw. The platform is
+      // aggregate-only; case-level PHI uploads wait for the HIPAA infra (§5).
+      rawObj[h || `col${i}`] = typeof r[i] === 'string' ? redactPHI(r[i]) : r[i]
       if (i === periodIdx) return
       const val = toNum(r[i])
       if (val === null) return

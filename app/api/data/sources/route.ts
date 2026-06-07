@@ -1,8 +1,49 @@
 import { NextResponse } from 'next/server'
 import { getAdminClient } from '@/lib/admin'
-import { requireUserMfa } from '@/lib/auth/aal'
+import { requireUserMfa, requireAdmin } from '@/lib/auth/aal'
+import { emitAppEvent } from '@/lib/telemetry/events'
+import { slugify } from '@/lib/util/slug'
 
 export const dynamic = 'force-dynamic'
+
+const KINDS = new Set(['spreadsheet', 'form', 'system', 'manual'])
+
+// Register a new file/manual data source (admin). The "load your files" half of
+// the connect portal — staff add a source (Collaborate export, a spreadsheet)
+// then upload to it. Aggregate metadata only.
+export async function POST(req: Request) {
+  const gate = await requireAdmin(req)
+  if ('response' in gate) return gate.response
+
+  const body = await req.json().catch(() => ({})) as { name?: string; kind?: string; componentSlug?: string; description?: string }
+  const name = String(body.name || '').trim().slice(0, 120)
+  if (!name) return NextResponse.json({ error: 'name required' }, { status: 400 })
+  const kind = KINDS.has(String(body.kind)) ? String(body.kind) : 'spreadsheet'
+  const slug = slugify(name)
+  if (!slug) return NextResponse.json({ error: 'name must contain letters or numbers' }, { status: 400 })
+
+  const admin = getAdminClient()
+  const { data: existing } = await admin.from('data_sources').select('id').eq('slug', slug).maybeSingle()
+  if (existing) return NextResponse.json({ error: 'a source with a similar name already exists' }, { status: 409 })
+
+  let componentId: string | null = null
+  if (body.componentSlug) {
+    const { data: comp } = await admin.from('components').select('id').eq('slug', String(body.componentSlug)).maybeSingle()
+    componentId = comp?.id ?? null
+  }
+
+  const { error } = await admin.from('data_sources').insert({
+    name, slug, kind, description: String(body.description || '').slice(0, 500) || null, component_id: componentId,
+  })
+  if (error) {
+    // Lost a concurrent create race → the unique(slug) constraint rejected it.
+    if ((error as { code?: string }).code === '23505') return NextResponse.json({ error: 'a source with a similar name already exists' }, { status: 409 })
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  await emitAppEvent({ eventName: 'source.created', category: 'system', userId: gate.user.id, route: '/api/data/sources', status: 'ok', metadata: { slug, kind } }).catch(() => {})
+  return NextResponse.json({ ok: true, slug })
+}
 
 export async function GET(req: Request) {
   const auth = await requireUserMfa(req)

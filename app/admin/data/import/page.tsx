@@ -35,12 +35,22 @@ export default function DataImportPage() {
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<any>(null)
   const [err, setErr] = useState<string | null>(null)
+  const [ack, setAck] = useState(false)
+  const [fromConnect, setFromConnect] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     (async () => {
       const res = await fetch('/api/data/sources', { headers: { Authorization: `Bearer ${await token()}` } })
-      if (res.ok) { const d = await res.json(); setSources((d.sources || []).map((s: any) => ({ slug: s.slug, name: s.name }))) }
+      if (res.ok) {
+        const d = await res.json()
+        const list = (d.sources || []).map((s: any) => ({ slug: s.slug, name: s.name }))
+        setSources(list)
+        // Pre-select when arriving from the connect portal (?source=slug).
+        const pre = new URLSearchParams(window.location.search).get('source')
+        if (pre) setFromConnect(true)
+        if (pre && list.some((s: { slug: string }) => s.slug === pre)) setSourceSlug(pre)
+      }
     })()
   }, [])
 
@@ -49,6 +59,7 @@ export default function DataImportPage() {
     const file = fileRef.current?.files?.[0]
     if (!file) { setErr('Choose a file first.'); return }
     if (!sourceSlug) { setErr('Pick a data source.'); return }
+    if (!ack) { setErr('Please confirm this file contains aggregate, non-PHI data.'); return }
     setBusy(true)
     try {
       const fd = new FormData()
@@ -100,10 +111,21 @@ export default function DataImportPage() {
           <label style={labelStyle}>Period label (if no period column)</label>
           <input value={periodLabel} onChange={e => setPeriodLabel(e.target.value)} placeholder="e.g. 2026" style={inputStyle} />
         </div>
-        <button onClick={submit} disabled={busy}
-          style={{ background: busy ? 'rgba(91,163,217,0.4)' : GOLD, color: '#0D0D0F', border: 'none', borderRadius: 8, padding: '12px', fontWeight: 600, fontSize: 14, cursor: busy ? 'not-allowed' : 'pointer' }}>
+        <div style={{ background: 'rgba(224,132,107,0.08)', border: `1px solid ${WARN}55`, borderRadius: 8, padding: '12px 14px' }}>
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+            <input type="checkbox" checked={ack} onChange={e => setAck(e.target.checked)} style={{ marginTop: 3 }} />
+            <span style={{ fontSize: 12.5, color: TEXT2, lineHeight: 1.5 }}>
+              I confirm this file contains <strong style={{ color: TEXT }}>aggregate, non-PHI</strong> data. Case-level exports (Collaborate client data, MDT, forensic/medical/mental-health records) must <strong style={{ color: WARN }}>not</strong> be uploaded until the HIPAA infrastructure is in place.
+            </span>
+          </label>
+        </div>
+        <button onClick={submit} disabled={busy || !ack}
+          style={{ background: busy || !ack ? 'rgba(91,163,217,0.4)' : GOLD, color: '#0D0D0F', border: 'none', borderRadius: 8, padding: '12px', fontWeight: 600, fontSize: 14, cursor: busy || !ack ? 'not-allowed' : 'pointer' }}>
           {busy ? 'Importing…' : 'Import'}
         </button>
+        {fromConnect && result && (
+          <button onClick={() => router.push('/admin/connections')} style={{ background: 'none', border: `1px solid ${LINE}`, color: GOLD, borderRadius: 8, padding: '10px', fontSize: 13, cursor: 'pointer' }}>← Back to Connections</button>
+        )}
         {err && <div style={{ color: WARN, fontSize: 13 }}>{err}</div>}
         {result && (
           <div style={{ color: OK, fontSize: 13, lineHeight: 1.6, borderTop: `1px solid ${LINE}`, paddingTop: 12 }}>

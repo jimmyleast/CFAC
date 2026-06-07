@@ -23,6 +23,11 @@ type Provider = {
   lastSyncAt: string | null; lastError: string | null
 }
 
+type FileSource = {
+  id: string; name: string; slug: string; kind: string
+  lastImportedAt: string | null; metricCount: number; issueCount: number
+}
+
 async function authFetch(url: string, opts: RequestInit = {}) {
   const supabase = createClient()
   const { data: { session } } = await supabase.auth.getSession()
@@ -40,19 +45,39 @@ function Inner() {
   const [err, setErr] = useState<string | null>(null)
   const [keyDraft, setKeyDraft] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState<string | null>(null)
+  const [sources, setSources] = useState<FileSource[]>([])
+  const [newName, setNewName] = useState('')
+  const [newKind, setNewKind] = useState('spreadsheet')
+  const [creating, setCreating] = useState(false)
 
   async function load() {
     setLoading(true); setErr(null)
     try {
-      const [cRes, roleRes] = await Promise.all([authFetch('/api/connections'), authFetch('/api/user/role').catch(() => null)])
+      const [cRes, sRes, roleRes] = await Promise.all([
+        authFetch('/api/connections'),
+        authFetch('/api/data/sources').catch(() => null),
+        authFetch('/api/user/role').catch(() => null),
+      ])
       if (cRes.status === 401) { setErr('Please sign in.'); setLoading(false); return }
       if (!cRes.ok) throw new Error(`HTTP ${cRes.status}`)
       const d = await cRes.json()
       setProviders(d.providers || []); setEncryptionReady(d.encryptionReady !== false)
+      if (sRes?.ok) { const sd = await sRes.json(); setSources(sd.sources || []) }
       if (roleRes?.ok) { const r = await roleRes.json(); setIsAdmin(r.role === 'admin') }
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)) } finally { setLoading(false) }
   }
   useEffect(() => { void load() }, [])
+
+  async function createSource() {
+    const name = newName.trim()
+    if (!name) return
+    setCreating(true)
+    try {
+      const res = await authFetch('/api/data/sources', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, kind: newKind }) })
+      if (!res.ok) { const e = await res.json().catch(() => ({})); alert(e.error || `Failed (${res.status})`) }
+      else { setNewName(''); await load() }
+    } finally { setCreating(false) }
+  }
 
   async function connectApiKey(id: string) {
     const apiKey = (keyDraft[id] || '').trim()
@@ -132,6 +157,49 @@ function Inner() {
           )
         })}
       </div>
+
+      {/* Files & spreadsheets — the no-API sources (Collaborate exports, the 12 sheets). */}
+      {!loading && (
+        <div style={{ marginTop: 36 }}>
+          <h2 style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 20, color: TEXT, margin: '0 0 4px' }}>Files &amp; spreadsheets</h2>
+          <p style={{ color: TEXT2, fontSize: 12.5, margin: '0 0 16px', maxWidth: 640 }}>
+            For systems without an API (Collaborate exports, the reporting spreadsheets), register the source here, then upload its file — the platform parses, validates, and loads it.
+          </p>
+
+          {isAdmin && (
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+              <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="New source name (e.g. Collaborate Export)"
+                style={{ flex: 1, minWidth: 220, background: '#0D0D0F', border: `1px solid ${LINE}`, borderRadius: 8, color: TEXT, fontSize: 13, padding: '8px 12px' }} />
+              <select value={newKind} onChange={(e) => setNewKind(e.target.value)} style={{ background: '#0D0D0F', border: `1px solid ${LINE}`, borderRadius: 8, color: TEXT, fontSize: 13, padding: '8px 10px' }}>
+                <option value="spreadsheet">Spreadsheet</option>
+                <option value="form">Form</option>
+                <option value="manual">Manual</option>
+                <option value="system">System export</option>
+              </select>
+              <button disabled={creating || !newName.trim()} onClick={createSource} style={{ background: GOLD, color: '#0D0D0F', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{creating ? 'Adding…' : 'Add source'}</button>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {sources.map((s) => (
+              <div key={s.id} style={{ background: BG2, border: `1px solid ${LINE}`, borderRadius: 10, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <div style={{ minWidth: 0 }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: TEXT }}>{s.name}</span>
+                  <span style={{ marginLeft: 8, fontSize: 11, color: TEXT4, textTransform: 'capitalize' }}>{s.kind}</span>
+                  <div style={{ fontSize: 11.5, color: TEXT2, marginTop: 3 }}>
+                    {s.metricCount} metrics · {s.lastImportedAt ? `updated ${new Date(s.lastImportedAt).toLocaleDateString()}` : 'no data yet'}
+                    {s.issueCount > 0 && <span style={{ color: WARN }}> · {s.issueCount} issues</span>}
+                  </div>
+                </div>
+                {isAdmin && (
+                  <a href={`/admin/data/import?source=${encodeURIComponent(s.slug)}`} style={{ background: 'rgba(91,163,217,0.12)', border: `1px solid ${GOLD}`, color: GOLD, borderRadius: 8, padding: '7px 14px', fontSize: 13, fontWeight: 600, textDecoration: 'none', flexShrink: 0 }}>Upload data</a>
+                )}
+              </div>
+            ))}
+            {!sources.length && <div style={{ color: TEXT4, fontSize: 13, fontStyle: 'italic' }}>No file sources yet.{isAdmin ? ' Add one above.' : ''}</div>}
+          </div>
+        </div>
+      )}
 
       {!loading && !isAdmin && <div style={{ color: TEXT4, fontSize: 12, fontStyle: 'italic', marginTop: 16 }}>Connecting systems is admin-only.</div>}
     </div>

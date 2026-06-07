@@ -23,6 +23,7 @@ export type AppEventName =
   | 'mapping.changed'
   | 'data.exceptions.scanned'
   | 'connection.changed'
+  | 'source.created'
 
 export type AppEventCategory = 'funnel' | 'latency' | 'error' | 'quality' | 'system' | 'auth'
 
