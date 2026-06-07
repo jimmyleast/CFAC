@@ -116,7 +116,10 @@ function Inner() {
     try {
       const res = await authFetch(`/api/connections/${encodeURIComponent(id)}/sync`, { method: 'POST' })
       const d = await res.json().catch(() => ({}))
-      if (!res.ok) alert(d.error || `Sync failed (${res.status})`)
+      // 409 = a concurrent sync is already running for this provider — a benign
+      // no-op, not a failure. Tell the admin plainly instead of an error alert.
+      if (d.skipped) alert('A sync is already running for this connection — try again shortly.')
+      else if (!res.ok) alert(d.error || `Sync failed (${res.status})`)
       else alert(`Synced — ${d.rows ?? 0} metric(s) loaded.`)
       await load()
     } finally { setBusy(null) }

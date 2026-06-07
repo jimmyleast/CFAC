@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { decryptSecret, encryptSecret, ensureEncryptionKey } from '@/lib/connectors/crypto'
 import { getProvider, providerEnv, type ProviderDef } from '@/lib/connectors/providers'
@@ -24,13 +25,21 @@ export type Connector = {
   pull(ctx: PullCtx): Promise<PulledMetric[]>
 }
 
-export type SyncResult = { ok: boolean; rows?: number; error?: string }
+// `skipped` is true ONLY for the benign "another run holds the lock" case — a
+// no-op, not a failure. Callers must classify it distinctly from real errors so
+// a routine cron/manual overlap doesn't surface as an alert-red sync failure.
+export type SyncResult = { ok: boolean; rows?: number; error?: string; skipped?: boolean }
 
 type ConnRow = {
   provider: string; status: string; auth_kind: string; external_label: string | null
   api_key_enc: string | null; access_token_enc: string | null; refresh_token_enc: string | null
-  token_expires_at: string | null
+  token_expires_at: string | null; sync_lock_until?: string | null; sync_lock_token?: string | null
 }
+
+// Lease length for the per-provider sync lock. A run that crashes without
+// releasing self-heals once this window elapses; sized well above a normal sync
+// (connector fetches time out at 20s) so it never expires under a healthy run.
+const SYNC_LEASE_MS = 10 * 60_000
 
 /** Decrypt creds for a connection, refreshing an expired OAuth token in place. */
 export async function resolveCreds(
@@ -107,6 +116,23 @@ export async function runSync(
   const { data: conn } = await admin.from('connections').select('*').eq('provider', providerId).maybeSingle()
   if (!conn || conn.status !== 'connected') return { ok: false, error: 'not connected' }
 
+  // Serialize per provider: claim the lock with a conditional UPDATE that only
+  // matches when no live lease is held (null or expired). Postgres evaluates the
+  // WHERE under a row lock, so of two concurrent claims exactly one updates a row
+  // — the loser gets zero rows back and skips, making a cron/manual overlap a
+  // no-op instead of a double metrics swap. A per-run token tags the lease so the
+  // finally release can verify ownership (a run whose lease expired mid-flight
+  // must not null a newer run's live lock). Released in the finally below.
+  const nowIso = new Date(nowMs).toISOString()
+  const token = crypto.randomUUID()
+  const { data: claimed, error: claimErr } = await admin.from('connections')
+    .update({ sync_lock_until: new Date(nowMs + SYNC_LEASE_MS).toISOString(), sync_lock_token: token })
+    .eq('provider', providerId)
+    .or(`sync_lock_until.is.null,sync_lock_until.lt."${nowIso}"`)
+    .select('id')
+  if (claimErr) return { ok: false, error: 'could not acquire sync lock' }
+  if (!claimed || claimed.length === 0) return { ok: false, skipped: true, error: 'sync already running' }
+
   try {
     if (!(await ensureEncryptionKey())) throw new Error('encryption key unavailable — retry')
     const creds = await resolveCreds(admin, conn as ConnRow, provider, nowMs)
@@ -137,5 +163,12 @@ export async function runSync(
     // Mark the connection unhealthy so the UI badge reflects sync failure, not just connect state.
     await admin.from('connections').update({ status: 'error', last_error: msg.slice(0, 300), updated_at: new Date(nowMs).toISOString() }).eq('provider', providerId).then(() => {}, () => {})
     return { ok: false, error: msg }
+  } finally {
+    // Release the lock no matter the outcome so the next tick can run — but only
+    // if we still own it (token match). If our lease already expired and another
+    // run re-claimed, this matches zero rows and leaves their lock intact. Best-
+    // effort: if this update fails the lease still expires on its own.
+    await admin.from('connections').update({ sync_lock_until: null, sync_lock_token: null })
+      .eq('provider', providerId).eq('sync_lock_token', token).then(() => {}, () => {})
   }
 }

@@ -37,4 +37,19 @@ describe('POST /api/connections/sync-all', () => {
     expect(d.total).toBe(2)
     expect(mRun).toHaveBeenCalledTimes(2) // both attempted, no early abort
   })
+
+  it('counts a lock-skip as skipped (not a failure) and stays ok, not partial', async () => {
+    const { emitAppEvent } = await import('@/lib/telemetry/events')
+    mRun.mockImplementation(async (_a: unknown, provider: string) =>
+      provider === 'bloomerang' ? { ok: true, rows: 2 } : { ok: false, skipped: true, error: 'sync already running' })
+    const res = await POST(new Request('http://t/api/connections/sync-all', { method: 'POST' }))
+    const d = await res.json()
+    expect(d.synced).toBe(1)
+    expect(d.skipped).toBe(1)
+    expect(d.total).toBe(2)
+    // A benign overlap must NOT raise an error-category/partial telemetry event.
+    const evt = (emitAppEvent as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(evt.category).toBe('system')
+    expect(evt.status).toBe('ok')
+  })
 })

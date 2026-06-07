@@ -18,14 +18,24 @@ describe('toMetricRows', () => {
   })
 })
 
-// Chainable admin mock for runSync. `track.pruned` flips true if old metrics were deleted.
-function adminMock({ conn, srcId, insertError, track }: { conn: unknown; srcId?: string; insertError?: unknown; track?: { pruned?: boolean } }) {
-  const thenableEq = { eq: () => ({ then: (r: (v: unknown) => void) => r({ data: null, error: null }) }) }
+// Chainable admin mock for runSync. `track.pruned` flips true if old metrics were
+// deleted. `claimHeld` simulates the per-provider sync lock already being held
+// (claim returns zero rows). `claimErr` simulates a DB error on the claim UPDATE.
+// Default: the claim succeeds.
+function adminMock({ conn, srcId, insertError, track, claimHeld, claimErr }: { conn: unknown; srcId?: string; insertError?: unknown; track?: { pruned?: boolean }; claimHeld?: boolean; claimErr?: unknown }) {
+  // update().eq() serves the claim (.or().select('id')), the plain status writes
+  // (await / .then() after one .eq), and the ownership-checked release (a second
+  // .eq('sync_lock_token') then .then()). The eq node is reusable + thenable.
+  const eqNode: Record<string, unknown> = {
+    or: () => ({ select: async () => ({ data: claimHeld ? [] : [{ id: 'conn1' }], error: claimErr || null }) }),
+    eq: () => ({ then: (r: (v: unknown) => void) => r({ data: null, error: null }) }),
+    then: (r: (v: unknown) => void) => r({ data: null, error: null }),
+  }
   return {
     from: (table: string) => {
       if (table === 'connections') return {
         select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: conn }) }) }),
-        update: () => thenableEq,
+        update: () => ({ eq: () => eqNode }),
       }
       if (table === 'data_sources') return {
         upsert: () => ({ select: () => ({ maybeSingle: async () => ({ data: srcId ? { id: srcId } : null }) }) }),
@@ -81,6 +91,148 @@ describe('runSync', () => {
     const r = await runSync(adminMock({ conn, srcId: 'src1' }), 'bloomerang', { bloomerang: failing }, Date.now())
     expect(r.ok).toBe(false)
     expect(r.error).toMatch(/api 500/)
+  })
+
+  it('skips (skipped:true) with "sync already running" when the per-provider lock is held', async () => {
+    const conn = { provider: 'bloomerang', status: 'connected', auth_kind: 'apikey', api_key_enc: encryptSecret('k'), token_expires_at: null }
+    const r = await runSync(adminMock({ conn, srcId: 'src1', claimHeld: true }), 'bloomerang', { bloomerang: okConnector }, Date.now())
+    expect(r.ok).toBe(false)
+    expect(r.skipped).toBe(true) // benign no-op, NOT a failure — callers must not alert on it
+    expect(r.error).toMatch(/already running/)
+  })
+
+  it('returns a (non-skip) error when the lock claim UPDATE itself fails', async () => {
+    const conn = { provider: 'bloomerang', status: 'connected', auth_kind: 'apikey', api_key_enc: encryptSecret('k'), token_expires_at: null }
+    const r = await runSync(adminMock({ conn, srcId: 'src1', claimErr: { message: 'db down' } }), 'bloomerang', { bloomerang: okConnector }, Date.now())
+    expect(r.ok).toBe(false)
+    expect(r.skipped).toBeUndefined() // a real DB fault, not a benign skip
+    expect(r.error).toMatch(/could not acquire sync lock/)
+  })
+})
+
+// Shared in-memory store backing a single connections row + a metrics table,
+// honoring the lock claim's conditional UPDATE atomically (read-check-set runs
+// synchronously, so two concurrent runSync coroutines can't both claim) AND the
+// ownership-checked release (.eq('sync_lock_token') gates the null-out). Used to
+// prove overlapping runs don't double the metric set and the lock is released.
+// `track.lastOr` captures the most recent claim filter string for format checks.
+function sharedStoreAdmin(store: { conn: Record<string, unknown>; metrics: { id: string; source_id: string }[]; seq: number }, track?: { lastOr?: string }) {
+  const claimable = (orStr: string) => {
+    const lock = store.conn.sync_lock_until as string | null
+    if (!lock) return true
+    const m = /lt\."([^"]+)"/.exec(orStr) // threshold = caller's "now"
+    return m ? Date.parse(lock) < Date.parse(m[1]) : false
+  }
+  return {
+    from: (table: string) => {
+      if (table === 'connections') return {
+        select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: store.conn }) }) }),
+        update: (payload: Record<string, unknown>) => {
+          const filters: Record<string, unknown> = {}
+          const node = {
+            eq: (col: string, val: unknown) => { filters[col] = val; return node },
+            // Atomic claim: synchronously check the lease and set it if free.
+            or: (orStr: string) => { if (track) track.lastOr = orStr; return { select: async () => {
+              if (!claimable(orStr)) return { data: [], error: null }
+              Object.assign(store.conn, payload) // sets sync_lock_until + sync_lock_token
+              return { data: [{ id: 'conn1' }], error: null }
+            } } },
+            // status / release writes. The release carries an ownership filter on
+            // sync_lock_token — apply the payload only if this run still owns the lock.
+            then: (r: (v: unknown) => void) => {
+              const owns = !('sync_lock_token' in filters) || store.conn.sync_lock_token === filters.sync_lock_token
+              if (owns) Object.assign(store.conn, payload)
+              r({ data: null, error: null })
+            },
+          }
+          return { eq: node.eq }
+        },
+      }
+      if (table === 'data_sources') return {
+        upsert: () => ({ select: () => ({ maybeSingle: async () => ({ data: { id: 'src1' } }) }) }),
+      }
+      if (table === 'metrics') return {
+        select: () => ({ eq: async () => ({ data: store.metrics.filter((m) => m.source_id === 'src1').map((m) => ({ id: m.id })) }) }),
+        insert: async (rows: { source_id: string }[]) => { for (const row of rows) store.metrics.push({ ...row, id: `m${store.seq++}` } as { id: string; source_id: string }); return { error: null } },
+        delete: () => ({ in: async (_c: string, ids: string[]) => { store.metrics = store.metrics.filter((m) => !ids.includes(m.id)); return {} } }),
+      }
+      return {}
+    },
+  } as never
+}
+
+// One pull = 2 distinct metrics, so "one pull's worth" (2) is unmistakable from
+// "two overlapping runs" (4).
+const twoMetric: Connector = { id: 'bloomerang', pull: async () => [
+  { metric_key: 'a', label: 'A', value: 1, period_label: '2026' },
+  { metric_key: 'b', label: 'B', value: 2, period_label: '2026' },
+] }
+const makeStore = (lockUntil: string | null = null) => ({
+  conn: { provider: 'bloomerang', status: 'connected', auth_kind: 'apikey', api_key_enc: encryptSecret('k'), token_expires_at: null, sync_lock_until: lockUntil, sync_lock_token: lockUntil ? 'held-by-other' : null } as Record<string, unknown>,
+  metrics: [] as { id: string; source_id: string }[],
+  seq: 1,
+})
+
+describe('runSync — concurrency guard', () => {
+  it('two overlapping runs do not double the metric set; the loser skips', async () => {
+    const store = makeStore()
+    const admin = sharedStoreAdmin(store)
+    const now = Date.now()
+
+    // Fire both at the same simulated instant against the shared store.
+    const [r1, r2] = await Promise.all([
+      runSync(admin, 'bloomerang', { bloomerang: twoMetric }, now),
+      runSync(admin, 'bloomerang', { bloomerang: twoMetric }, now),
+    ])
+
+    const winner = [r1, r2].filter((r) => r.ok)
+    const skipped = [r1, r2].filter((r) => !r.ok)
+    expect(winner).toHaveLength(1)          // exactly one run did the swap
+    expect(winner[0].rows).toBe(2)
+    expect(skipped).toHaveLength(1)          // the other observed the lock
+    expect(skipped[0].skipped).toBe(true)
+    expect(skipped[0].error).toMatch(/already running/)
+    expect(store.metrics).toHaveLength(2)    // one pull's worth, NOT 4
+    expect(store.conn.sync_lock_until).toBeNull()  // released in finally
+    expect(store.conn.sync_lock_token).toBeNull()  // token cleared too
+  })
+
+  it('releases the lock even when the run fails (no wedged provider)', async () => {
+    const store = makeStore()
+    const failing: Connector = { id: 'bloomerang', pull: async () => { throw new Error('api 500') } }
+    const r = await runSync(sharedStoreAdmin(store), 'bloomerang', { bloomerang: failing }, Date.now())
+    expect(r.ok).toBe(false)
+    expect(r.skipped).toBeUndefined()              // a real failure, not a skip
+    expect(store.conn.sync_lock_until).toBeNull()  // finally released despite the throw
+    expect(store.conn.sync_lock_token).toBeNull()
+  })
+
+  it('reclaims an expired lease (crashed prior run self-heals)', async () => {
+    const past = new Date(Date.now() - 60_000).toISOString() // lease already elapsed
+    const store = makeStore(past)
+    const r = await runSync(sharedStoreAdmin(store), 'bloomerang', { bloomerang: twoMetric }, Date.now())
+    expect(r.ok).toBe(true)                  // stale lock did not block the run
+    expect(store.metrics).toHaveLength(2)
+  })
+
+  it('skips when a live (unexpired) lease is held', async () => {
+    const future = new Date(Date.now() + 5 * 60_000).toISOString() // lease still valid
+    const store = makeStore(future)
+    const r = await runSync(sharedStoreAdmin(store), 'bloomerang', { bloomerang: twoMetric }, Date.now())
+    expect(r.ok).toBe(false)
+    expect(r.skipped).toBe(true)
+    expect(store.metrics).toHaveLength(0)    // no swap happened
+    expect(store.conn.sync_lock_token).toBe('held-by-other') // other run's lock untouched
+  })
+
+  it('claim filter quotes the timestamp so PostgREST parses it (is.null OR lt."<iso>")', async () => {
+    const track: { lastOr?: string } = {}
+    const store = makeStore()
+    const now = Date.parse('2026-06-07T07:00:00.000Z')
+    await runSync(sharedStoreAdmin(store, track), 'bloomerang', { bloomerang: twoMetric }, now)
+    // Pin the exact format: the ISO value (containing '.' and ':') MUST be double-
+    // quoted or PostgREST would mis-split it on the '.' in the milliseconds.
+    expect(track.lastOr).toBe('sync_lock_until.is.null,sync_lock_until.lt."2026-06-07T07:00:00.000Z"')
   })
 })
 
