@@ -143,8 +143,9 @@ vite.config.ts.timestamp-*
 playwright-report/
 test-results/
 
-# Claude Code local config
-.claude/
+# Claude Code local config (keep the review-gate agents tracked)
+.claude/*
+!.claude/agents/
 
 # Supabase local backups
 supabase/local_backup_*.sql
