@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import Pinwheel from '@/components/Pinwheel'
 
 export default function LandingPage() {
   const router = useRouter()
@@ -81,14 +82,15 @@ export default function LandingPage() {
       {/* Header */}
       <header style={{ padding: '16px 24px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 22, letterSpacing: '0.06em', color: '#C9A84C' }}>CFAC</span>
+          <Pinwheel size={28} />
+          <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 22, letterSpacing: '0.06em', color: '#5BA3D9' }}>CFAC</span>
           <span style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#8A8680', fontWeight: 600 }}>Data &amp; Operations</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {installPrompt && !installed && (
             <button onClick={handleInstall} style={{
-              background: 'rgba(201,168,76,0.15)', border: '1px solid #C9A84C',
-              color: '#C9A84C', padding: '8px 16px',
+              background: 'rgba(91,163,217,0.15)', border: '1px solid #5BA3D9',
+              color: '#5BA3D9', padding: '8px 16px',
               fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 11,
               letterSpacing: '0.12em', textTransform: 'uppercase',
               cursor: 'pointer',
@@ -98,7 +100,7 @@ export default function LandingPage() {
           )}
           {installed && (
             <span style={{
-              fontSize: 11, color: '#C9A84C',
+              fontSize: 11, color: '#5BA3D9',
               fontFamily: 'var(--font-heading)', fontWeight: 700,
               letterSpacing: '0.12em', textTransform: 'uppercase',
             }}>
@@ -128,6 +130,19 @@ export default function LandingPage() {
         <p style={{ fontSize: 15, color: '#8A8680', maxWidth: 480, margin: '0 auto', lineHeight: 1.6 }}>
           Restoring the lives of children who have experienced abuse. Ask anything about our programs, services, or how to get help.
         </p>
+        {/* The three CFAC pillars */}
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap', maxWidth: 720, margin: '24px auto 0' }}>
+          {[
+            { t: 'Child Maltreatment', d: 'Restoring the lives of children who have experienced abuse', c: '#1E3A8A' },
+            { t: 'Restorative Programming', d: 'Breaking the cycle of abuse through comprehensive programming', c: '#3B7BB5' },
+            { t: 'Education', d: 'Empowering the community to impact change', c: '#5BA3D9' },
+          ].map((p) => (
+            <div key={p.t} style={{ flex: '1 1 200px', maxWidth: 230, background: p.c, borderRadius: 10, padding: '16px 18px', textAlign: 'left' }}>
+              <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 15, color: '#fff', marginBottom: 6 }}>{p.t}</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)', lineHeight: 1.5 }}>{p.d}</div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Chat */}

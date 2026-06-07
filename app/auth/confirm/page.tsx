@@ -124,11 +124,11 @@ export default function ConfirmPage() {
         )}
 
         {status === 'error' && (
-          <p style={{ color: '#C4605A', textAlign: 'center' }}>Link is invalid or expired. <a href="/auth/login" style={{ color: '#C9A84C' }}>Back to sign in</a></p>
+          <p style={{ color: '#C4605A', textAlign: 'center' }}>Link is invalid or expired. <a href="/auth/login" style={{ color: '#5BA3D9' }}>Back to sign in</a></p>
         )}
 
         {status === 'done' && (
-          <p style={{ color: '#C9A84C', textAlign: 'center' }}>Password updated — redirecting…</p>
+          <p style={{ color: '#5BA3D9', textAlign: 'center' }}>Password updated — redirecting…</p>
         )}
 
         {status === 'reset' && (
@@ -148,7 +148,7 @@ export default function ConfirmPage() {
                 type="submit"
                 disabled={saving}
                 style={{
-                  width: '100%', background: saving ? 'rgba(201,168,76,0.35)' : '#C9A84C',
+                  width: '100%', background: saving ? 'rgba(91,163,217,0.35)' : '#5BA3D9',
                   border: 'none', borderRadius: 8, padding: '13px 0', color: '#0D0D0F',
                   fontWeight: 600, fontSize: 14, cursor: saving ? 'not-allowed' : 'pointer',
                   fontFamily: 'var(--font-dm-sans), DM Sans, sans-serif',

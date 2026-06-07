@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import * as Icons from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
-const GOLD = '#C9A84C'
+const GOLD = '#5BA3D9'
 const TEAL = '#7DD3C7'
 const BG2 = 'rgba(255,255,255,0.025)'
 const TEXT = '#F0EDE6'
@@ -72,7 +72,7 @@ export default function HomePage() {
               onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = t.accent }}
               onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = LINE }}
             >
-              <span style={{ width: 40, height: 40, borderRadius: 10, display: 'grid', placeItems: 'center', background: 'rgba(201,168,76,0.1)', border: `1px solid ${t.accent}33` }}>
+              <span style={{ width: 40, height: 40, borderRadius: 10, display: 'grid', placeItems: 'center', background: 'rgba(91,163,217,0.1)', border: `1px solid ${t.accent}33` }}>
                 <Icon size={20} strokeWidth={1.5} color={t.accent} />
               </span>
               <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 17, color: TEXT }}>{t.label}</span>

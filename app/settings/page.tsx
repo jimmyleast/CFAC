@@ -106,7 +106,7 @@ export default function SettingsPage() {
         <div style={{
           fontFamily: 'var(--font-heading)', fontWeight: 600, fontSize: 11,
           letterSpacing: '0.18em', textTransform: 'uppercase',
-          color: '#C9A84C', marginBottom: 8,
+          color: '#5BA3D9', marginBottom: 8,
         }}>Account</div>
         <h1 style={{
           fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 36,
@@ -116,7 +116,7 @@ export default function SettingsPage() {
         <p style={{ fontSize: 13, color: '#8A8680', maxWidth: 480, lineHeight: 1.5 }}>
           Your profile, preferences, and account details.
         </p>
-        <button onClick={() => router.push('/settings/security')} style={{ marginTop: 14, background: 'rgba(201,168,76,0.12)', border: '1px solid #C9A84C', color: '#C9A84C', borderRadius: 8, padding: '9px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+        <button onClick={() => router.push('/settings/security')} style={{ marginTop: 14, background: 'rgba(91,163,217,0.12)', border: '1px solid #5BA3D9', color: '#5BA3D9', borderRadius: 8, padding: '9px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
           🔒 Security &amp; Two-Factor Authentication
         </button>
       </div>

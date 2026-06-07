@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation'
 import * as Icons from 'lucide-react'
 import { NavSection } from '@/lib/nav-config'
+import Pinwheel from '@/components/Pinwheel'
 import { AvailableTeam, TeamGroup } from '@/hooks/useTeamNav'
 
 interface NavDrawerProps {
@@ -18,8 +19,8 @@ interface NavDrawerProps {
   onDrawerClose?: () => void
 }
 
-const GOLD = '#C9A84C'
-const GOLD_GLOW = 'rgba(201,168,76,0.15)'
+const GOLD = '#5BA3D9'
+const GOLD_GLOW = 'rgba(91,163,217,0.15)'
 const GOLD_DIM = '#9A7E36'
 const BG = '#0A0A0A'
 const BG2 = '#111111'
@@ -77,7 +78,10 @@ export default function NavDrawer({ sections, teamName, userName, userInitials, 
       {/* Header: logo + close */}
       <div style={{ padding: '20px 20px 16px', borderBottom: `1px solid ${LINE}`, flexShrink: 0, background: BG }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-          <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 22, letterSpacing: '0.06em', color: GOLD }}>CFAC</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Pinwheel size={26} />
+            <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 22, letterSpacing: '0.06em', color: GOLD }}>CFAC</span>
+          </span>
           <button
             type="button" onClick={() => onDrawerClose?.()} aria-label="Close menu" className="drawer-close-btn"
             style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.22)', color: TEXT2, width: 36, height: 36, minWidth: 36, minHeight: 36, display: 'none', placeItems: 'center', cursor: 'pointer', flexShrink: 0 }}

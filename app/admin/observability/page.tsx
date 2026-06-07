@@ -8,7 +8,7 @@ const BG2 = '#111111'
 const TEXT = '#F0EDE6'
 const TEXT2 = '#8A8680'
 const TEXT3 = '#555250'
-const GOLD = '#C9A84C'
+const GOLD = '#5BA3D9'
 const SUCCESS = '#059669'
 const CRITICAL = '#DC2626'
 const LINE = '#2A2A2A'
@@ -111,7 +111,7 @@ export default function ObservabilityPage() {
       {payload?.status === 'degraded' && payload.note && (
         <div style={{
           marginBottom: 16, border: `1px solid ${GOLD}`,
-          background: 'rgba(201,168,76,0.08)', color: GOLD,
+          background: 'rgba(91,163,217,0.08)', color: GOLD,
           padding: '10px 14px', fontSize: 12, fontFamily: 'var(--font-mono)',
           borderLeft: `2px solid ${GOLD}`,
         }}>

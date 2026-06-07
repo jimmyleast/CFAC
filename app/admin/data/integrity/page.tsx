@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import * as Icons from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
-const GOLD = '#C9A84C'
+const GOLD = '#5BA3D9'
 const TEXT = '#F0EDE6'
 const TEXT2 = '#8A8680'
 const TEXT4 = '#555250'

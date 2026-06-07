@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
-const GOLD = '#C9A84C'
+const GOLD = '#5BA3D9'
 const TEXT = '#F0EDE6'
 const TEXT2 = '#8A8680'
 const LINE = '#2A2A2A'
@@ -87,7 +87,7 @@ export default function ExecutivePage() {
       {impact.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 28 }}>
           {impact.map((m) => (
-            <div key={m.key} title={m.definition} style={{ background: 'linear-gradient(180deg, rgba(201,168,76,0.07), rgba(255,255,255,0.02))', border: `1px solid ${GOLD}44`, borderRadius: 12, padding: '18px 20px' }}>
+            <div key={m.key} title={m.definition} style={{ background: 'linear-gradient(180deg, rgba(91,163,217,0.07), rgba(255,255,255,0.02))', border: `1px solid ${GOLD}44`, borderRadius: 12, padding: '18px 20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                 <span style={{ color: GOLD, fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>{m.label}</span>
                 {m.isDedup && <span style={{ fontSize: 9, color: GOLD, border: `1px solid ${GOLD}55`, borderRadius: 4, padding: '1px 5px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>unique</span>}

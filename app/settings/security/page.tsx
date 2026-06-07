@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
-const GOLD = '#C9A84C'
+const GOLD = '#5BA3D9'
 const TEXT = '#F0EDE6'
 const TEXT2 = '#8A8680'
 const LINE = '#2A2A2A'

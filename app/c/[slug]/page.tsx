@@ -6,7 +6,7 @@ import * as Icons from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { CFAC_COMPONENTS } from '@/lib/nav-config'
 
-const GOLD = '#C9A84C'
+const GOLD = '#5BA3D9'
 const TEAL = '#7DD3C7'
 const TEXT = '#F0EDE6'
 const TEXT2 = '#8A8680'

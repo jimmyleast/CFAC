@@ -42,7 +42,7 @@ type Message = {
   followups?: string[]
 }
 
-const GOLD = '#C9A84C'
+const GOLD = '#5BA3D9'
 const HOPE = '#1AAFA0'
 const HOPE_GLOW = 'rgba(26,175,160,0.18)'
 const BG = '#0A0A0A'

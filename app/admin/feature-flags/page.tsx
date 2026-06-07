@@ -9,7 +9,7 @@ const BG2 = '#111111'
 const TEXT = '#F0EDE6'
 const TEXT2 = '#8A8680'
 const TEXT3 = '#555250'
-const GOLD = '#C9A84C'
+const GOLD = '#5BA3D9'
 const LINE = '#2A2A2A'
 const LINE2 = '#3A3A3A'
 

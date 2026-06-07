@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import * as Icons from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
-const GOLD = '#C9A84C'
+const GOLD = '#5BA3D9'
 const TEXT = '#F0EDE6'
 const TEXT2 = '#8A8680'
 const LINE = '#2A2A2A'
@@ -101,7 +101,7 @@ export default function DataImportPage() {
           <input value={periodLabel} onChange={e => setPeriodLabel(e.target.value)} placeholder="e.g. 2026" style={inputStyle} />
         </div>
         <button onClick={submit} disabled={busy}
-          style={{ background: busy ? 'rgba(201,168,76,0.4)' : GOLD, color: '#0D0D0F', border: 'none', borderRadius: 8, padding: '12px', fontWeight: 600, fontSize: 14, cursor: busy ? 'not-allowed' : 'pointer' }}>
+          style={{ background: busy ? 'rgba(91,163,217,0.4)' : GOLD, color: '#0D0D0F', border: 'none', borderRadius: 8, padding: '12px', fontWeight: 600, fontSize: 14, cursor: busy ? 'not-allowed' : 'pointer' }}>
           {busy ? 'Importing…' : 'Import'}
         </button>
         {err && <div style={{ color: WARN, fontSize: 13 }}>{err}</div>}

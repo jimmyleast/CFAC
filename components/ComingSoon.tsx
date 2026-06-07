@@ -6,7 +6,7 @@ export default function ComingSoon({ name }: { name: string }) {
       <div style={{
         fontFamily: 'var(--font-heading)', fontWeight: 600, fontSize: 11,
         letterSpacing: '0.18em', textTransform: 'uppercase',
-        color: '#C9A84C', marginBottom: 8,
+        color: '#5BA3D9', marginBottom: 8,
       }}>Coming Soon</div>
       <h1 style={{
         fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 36,

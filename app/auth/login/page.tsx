@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import Pinwheel from '@/components/Pinwheel'
 
 const ALLOWED_SIGNUP_DOMAINS = ['cfacbentonco.com']
 
@@ -42,7 +43,7 @@ function PasswordInput({ value, onChange, placeholder, disabled, id }: {
         required
         disabled={disabled}
         style={{ ...inputStyle, paddingRight: 44 }}
-        onFocus={e => { e.target.style.borderColor = '#C9A84C' }}
+        onFocus={e => { e.target.style.borderColor = '#5BA3D9' }}
         onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.12)' }}
       />
       <button
@@ -223,11 +224,12 @@ export default function LoginPage() {
         display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
         padding: '60px 48px',
-        borderRight: '1px solid rgba(201,168,76,0.12)',
+        borderRight: '1px solid rgba(91,163,217,0.12)',
         position: 'relative',
       }}>
         <div style={{ textAlign: 'center', maxWidth: 420 }}>
-          <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, letterSpacing: '0.06em', fontSize: 56, color: '#C9A84C', marginBottom: 4, lineHeight: 1 }}>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}><Pinwheel size={64} /></div>
+          <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, letterSpacing: '0.06em', fontSize: 56, color: '#5BA3D9', marginBottom: 4, lineHeight: 1 }}>
             CFAC
           </div>
           <div style={{ fontSize: 11, letterSpacing: '.2em', textTransform: 'uppercase', color: '#555250', marginBottom: 28, fontWeight: 600 }}>Children &amp; Family Advocacy Center</div>
@@ -237,7 +239,7 @@ export default function LoginPage() {
           <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase', color: '#F0EDE6', lineHeight: 1.8, marginBottom: 20 }}>
             Track Data.<br />Measure Impact.<br />Serve Families.
           </div>
-          <div style={{ width: 40, height: 2, background: '#C9A84C', margin: '0 auto 20px', borderRadius: 1 }} />
+          <div style={{ width: 40, height: 2, background: '#5BA3D9', margin: '0 auto 20px', borderRadius: 1 }} />
           <p style={{ color: '#555250', fontSize: 15, lineHeight: 1.6 }}>Internal operations &amp; data platform for CFAC staff.</p>
         </div>
         <div style={{ position: 'absolute', bottom: 28, fontSize: 11, color: '#2A2A2C', letterSpacing: '.06em', textTransform: 'uppercase' }}>
@@ -261,8 +263,8 @@ export default function LoginPage() {
                     background: 'transparent', border: 'none', cursor: 'pointer',
                     padding: '10px 0', marginRight: 28,
                     fontSize: 15, fontWeight: active ? 600 : 400,
-                    color: active ? '#C9A84C' : '#555250',
-                    borderBottom: active ? '2px solid #C9A84C' : '2px solid transparent',
+                    color: active ? '#5BA3D9' : '#555250',
+                    borderBottom: active ? '2px solid #5BA3D9' : '2px solid transparent',
                     marginBottom: -1, transition: 'color 0.15s',
                     fontFamily: 'var(--font-dm-sans), DM Sans, sans-serif',
                   }}
@@ -274,8 +276,8 @@ export default function LoginPage() {
           </div>
 
           {success && (
-            <div style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 8, padding: '12px 14px', marginBottom: 20 }}>
-              <p style={{ color: '#C9A84C', fontSize: 13, margin: 0 }}>{success}</p>
+            <div style={{ background: 'rgba(91,163,217,0.08)', border: '1px solid rgba(91,163,217,0.25)', borderRadius: 8, padding: '12px 14px', marginBottom: 20 }}>
+              <p style={{ color: '#5BA3D9', fontSize: 13, margin: 0 }}>{success}</p>
             </div>
           )}
 
@@ -288,7 +290,7 @@ export default function LoginPage() {
                   type="email" value={email} onChange={e => setEmail(e.target.value)}
                   placeholder="you@cfacbentonco.com" required disabled={loading}
                   style={inputStyle}
-                  onFocus={e => { e.target.style.borderColor = '#C9A84C' }}
+                  onFocus={e => { e.target.style.borderColor = '#5BA3D9' }}
                   onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.12)' }}
                 />
               </div>
@@ -300,7 +302,7 @@ export default function LoginPage() {
               <button
                 type="submit" disabled={btnSignInDisabled}
                 style={{
-                  width: '100%', background: btnSignInDisabled ? 'rgba(201,168,76,0.35)' : '#C9A84C',
+                  width: '100%', background: btnSignInDisabled ? 'rgba(91,163,217,0.35)' : '#5BA3D9',
                   border: 'none', borderRadius: 8, padding: '13px 0', color: '#0D0D0F',
                   fontWeight: 600, fontSize: 14, cursor: btnSignInDisabled ? 'not-allowed' : 'pointer',
                   fontFamily: 'var(--font-dm-sans), DM Sans, sans-serif', marginTop: 4,
@@ -330,7 +332,7 @@ export default function LoginPage() {
                   type="email" value={email} onChange={e => setEmail(e.target.value)}
                   placeholder="you@cfacbentonco.com" required disabled={loading}
                   style={inputStyle}
-                  onFocus={e => { e.target.style.borderColor = '#C9A84C' }}
+                  onFocus={e => { e.target.style.borderColor = '#5BA3D9' }}
                   onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.12)' }}
                 />
               </div>
@@ -346,7 +348,7 @@ export default function LoginPage() {
               <button
                 type="submit" disabled={btnSignUpDisabled}
                 style={{
-                  width: '100%', background: btnSignUpDisabled ? 'rgba(201,168,76,0.35)' : '#C9A84C',
+                  width: '100%', background: btnSignUpDisabled ? 'rgba(91,163,217,0.35)' : '#5BA3D9',
                   border: 'none', borderRadius: 8, padding: '13px 0', color: '#0D0D0F',
                   fontWeight: 600, fontSize: 14, cursor: btnSignUpDisabled ? 'not-allowed' : 'pointer',
                   fontFamily: 'var(--font-dm-sans), DM Sans, sans-serif', marginTop: 4,

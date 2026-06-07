@@ -3,8 +3,9 @@
 import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import Pinwheel from '@/components/Pinwheel'
 
-const GOLD = '#C9A84C'
+const GOLD = '#5BA3D9'
 const TEXT = '#F0EDE6'
 const TEXT2 = '#8A8680'
 const LINE = '#2A2A2A'
@@ -66,6 +67,7 @@ function MfaChallengeInner() {
   return (
     <div style={{ minHeight: '100vh', background: '#0D0D0F', display: 'grid', placeItems: 'center', padding: 24 }}>
       <div style={{ width: '100%', maxWidth: 380, textAlign: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}><Pinwheel size={48} /></div>
         <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 40, color: GOLD, marginBottom: 4 }}>CFAC</div>
         <h1 style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 22, color: TEXT, margin: '12px 0 8px' }}>Two-factor verification</h1>
         <p style={{ color: TEXT2, fontSize: 14, marginBottom: 24 }}>Enter the 6-digit code from your authenticator app.</p>
@@ -90,7 +92,7 @@ function MfaChallengeInner() {
             />
             {err && <div style={{ color: WARN, fontSize: 13, marginTop: 12 }}>{err}</div>}
             <button disabled={busy || code.length !== 6} onClick={verify}
-              style={{ width: '100%', marginTop: 16, background: code.length === 6 ? GOLD : 'rgba(201,168,76,0.35)', color: '#0D0D0F', border: 'none', borderRadius: 8, padding: '13px', fontWeight: 600, fontSize: 15, cursor: code.length === 6 ? 'pointer' : 'not-allowed' }}>
+              style={{ width: '100%', marginTop: 16, background: code.length === 6 ? GOLD : 'rgba(91,163,217,0.35)', color: '#0D0D0F', border: 'none', borderRadius: 8, padding: '13px', fontWeight: 600, fontSize: 15, cursor: code.length === 6 ? 'pointer' : 'not-allowed' }}>
               {busy ? 'Verifying…' : 'Verify'}
             </button>
             <button onClick={async () => { await supabase?.auth.signOut(); window.location.assign('/auth/login') }}
