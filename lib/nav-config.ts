@@ -62,6 +62,7 @@ export function getCfacNav(isAdmin: boolean): NavSection[] {
       section: 'ADMIN',
       items: [
         { label: 'People', href: '/admin/people', icon: 'Users', description: 'Staff with platform access' },
+        { label: 'Connections', href: '/admin/connections', icon: 'Plug', description: 'Link source systems to pull data' },
         { label: 'Feature Flags', href: '/admin/feature-flags', icon: 'ToggleLeft', description: 'Toggle features' },
         { label: 'Observability', href: '/admin/observability', icon: 'Activity', description: 'App telemetry' },
       ],
