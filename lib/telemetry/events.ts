@@ -24,6 +24,7 @@ export type AppEventName =
   | 'data.exceptions.scanned'
   | 'connection.changed'
   | 'source.created'
+  | 'connect_invite.created'
 
 export type AppEventCategory = 'funnel' | 'latency' | 'error' | 'quality' | 'system' | 'auth'
 

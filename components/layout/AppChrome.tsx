@@ -16,7 +16,8 @@ export default function AppChrome({ children }: { children: React.ReactNode }) {
   const [role, setRole] = useState<UserRole>(null)
 
   useEffect(() => {
-    if (!pathname || pathname.startsWith('/auth') || pathname === '/onboarding') return
+    // /connect/* are public, token-gated invite pages — no app auth required.
+    if (!pathname || pathname.startsWith('/auth') || pathname === '/connect' || pathname.startsWith('/connect/') || pathname === '/onboarding') return
     // Enforce 2FA: if the user has a verified factor but this session is not
     // elevated to AAL2, send them to the challenge.
     void createClient().auth.mfa.getAuthenticatorAssuranceLevel()
@@ -46,6 +47,7 @@ export default function AppChrome({ children }: { children: React.ReactNode }) {
     if (pathname === '/') return true
     if (pathname === '/hub') return true
     if (pathname.startsWith('/auth')) return true
+    if (pathname === '/connect' || pathname.startsWith('/connect/')) return true
     return false
   }, [pathname])
 

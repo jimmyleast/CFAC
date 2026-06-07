@@ -49,6 +49,7 @@ function Inner() {
   const [newName, setNewName] = useState('')
   const [newKind, setNewKind] = useState('spreadsheet')
   const [creating, setCreating] = useState(false)
+  const [inviteLink, setInviteLink] = useState<{ provider: string; link: string } | null>(null)
 
   async function load() {
     setLoading(true); setErr(null)
@@ -87,6 +88,16 @@ function Inner() {
       const res = await authFetch('/api/connections', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider: id, apiKey }) })
       if (!res.ok) { const e = await res.json().catch(() => ({})); alert(e.error || `Failed (${res.status})`) }
       else { setKeyDraft({ ...keyDraft, [id]: '' }); await load() }
+    } finally { setBusy(null) }
+  }
+  async function inviteOwner(id: string) {
+    setBusy(id); setInviteLink(null)
+    try {
+      const res = await authFetch('/api/connect-invites', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider: id }) })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) { alert(d.error || `Failed (${res.status})`); return }
+      setInviteLink({ provider: id, link: d.link })
+      try { await navigator.clipboard.writeText(d.link) } catch { /* clipboard may be blocked */ }
     } finally { setBusy(null) }
   }
   async function disconnect(id: string) {
@@ -143,14 +154,25 @@ function Inner() {
                 </div>
               </div>
 
-              {/* API-key connect form */}
+              {/* API-key connect form + delegated invite */}
               {isAdmin && p.authKind === 'apikey' && p.status !== 'connected' && encryptionReady && (
-                <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-                  <input type="password" value={keyDraft[p.id] || ''} onChange={(e) => setKeyDraft({ ...keyDraft, [p.id]: e.target.value })}
-                    placeholder={`${p.name} API key`} style={{ flex: 1, minWidth: 200, background: '#0D0D0F', border: `1px solid ${LINE}`, borderRadius: 8, color: TEXT, fontSize: 13, padding: '8px 12px' }} />
-                  <button disabled={busy === p.id || !(keyDraft[p.id] || '').trim()} onClick={() => connectApiKey(p.id)}
-                    style={{ background: GOLD, color: '#0D0D0F', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Connect</button>
-                </div>
+                <>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                    <input type="password" value={keyDraft[p.id] || ''} onChange={(e) => setKeyDraft({ ...keyDraft, [p.id]: e.target.value })}
+                      placeholder={`${p.name} API key`} style={{ flex: 1, minWidth: 200, background: '#0D0D0F', border: `1px solid ${LINE}`, borderRadius: 8, color: TEXT, fontSize: 13, padding: '8px 12px' }} />
+                    <button disabled={busy === p.id || !(keyDraft[p.id] || '').trim()} onClick={() => connectApiKey(p.id)}
+                      style={{ background: GOLD, color: '#0D0D0F', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Connect</button>
+                  </div>
+                  <div style={{ marginTop: 8, fontSize: 12, color: TEXT2 }}>
+                    Don&apos;t have the key? <button disabled={busy === p.id} onClick={() => inviteOwner(p.id)} style={{ background: 'none', border: 'none', color: GOLD, cursor: 'pointer', textDecoration: 'underline', padding: 0, fontSize: 12 }}>Invite the system owner to connect it</button> — they paste their own key.
+                  </div>
+                  {inviteLink?.provider === p.id && (
+                    <div style={{ marginTop: 8, background: '#0D0D0F', border: `1px solid ${GOLD}55`, borderRadius: 8, padding: '10px 12px' }}>
+                      <div style={{ fontSize: 11, color: OK, marginBottom: 6 }}>✓ Invite link created (copied to clipboard). Send it to the owner — it expires in 7 days and works once.</div>
+                      <input readOnly value={inviteLink.link} onFocus={(e) => e.currentTarget.select()} style={{ width: '100%', background: '#000', border: `1px solid ${LINE}`, borderRadius: 6, color: TEXT2, fontSize: 11, padding: '6px 8px', fontFamily: 'var(--font-mono)' }} />
+                    </div>
+                  )}
+                </>
               )}
               {!p.phiAllowed && <div style={{ fontSize: 11, color: TEXT4, marginTop: 10 }}>⚠ No BAA — connect for non-PHI data only.</div>}
             </div>
