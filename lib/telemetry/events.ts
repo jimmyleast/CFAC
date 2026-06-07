@@ -20,6 +20,7 @@ export type AppEventName =
   | 'admin.invite.failed'
   | 'auth.mfa.admin_reset'
   | 'definition.updated'
+  | 'mapping.changed'
 
 export type AppEventCategory = 'funnel' | 'latency' | 'error' | 'quality' | 'system' | 'auth'
 

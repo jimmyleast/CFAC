@@ -17,6 +17,12 @@ type Tile = {
   series: { period: string; value: number }[]
 }
 
+type Impact = {
+  key: string; label: string; definition: string; isDedup: boolean
+  mapped: boolean; value: number | null; period: string | null
+  sources: { key: string; agg: string; value: number | null }[]
+}
+
 async function authFetch(url: string) {
   const supabase = createClient()
   const { data: { session } } = await supabase.auth.getSession()
@@ -47,6 +53,7 @@ function fmt(n: number) { return n.toLocaleString('en-US') }
 
 export default function ExecutivePage() {
   const [tiles, setTiles] = useState<Tile[]>([])
+  const [impact, setImpact] = useState<Impact[]>([])
   const [latestPeriod, setLatestPeriod] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
@@ -60,6 +67,11 @@ export default function ExecutivePage() {
       })
       .then((data) => { if (!active) return; setTiles(data.tiles || []); setLatestPeriod(data.latestPeriod || null); setLoading(false) })
       .catch((e) => { if (!active) return; setErr(String(e.message || e)); setLoading(false) })
+    // Impact metrics load independently (computed from mappings).
+    authFetch('/api/impact/summary')
+      .then((res) => (res.ok ? res.json() : { impact: [] }))
+      .then((data) => { if (active) setImpact(data.impact || []) })
+      .catch(() => { if (active) setImpact([]) })
     return () => { active = false }
   }, [])
 
@@ -70,6 +82,32 @@ export default function ExecutivePage() {
         <h1 style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 32, color: TEXT, margin: 0 }}>Executive Dashboard</h1>
         {latestPeriod && <span style={{ color: TEXT2, fontSize: 13 }}>Latest period: <strong style={{ color: TEXT }}>{latestPeriod}</strong></span>}
       </div>
+
+      {/* Impact row — the three headline metrics, COMPUTED from Metric Mappings */}
+      {impact.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 28 }}>
+          {impact.map((m) => (
+            <div key={m.key} title={m.definition} style={{ background: 'linear-gradient(180deg, rgba(201,168,76,0.07), rgba(255,255,255,0.02))', border: `1px solid ${GOLD}44`, borderRadius: 12, padding: '18px 20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <span style={{ color: GOLD, fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>{m.label}</span>
+                {m.isDedup && <span style={{ fontSize: 9, color: GOLD, border: `1px solid ${GOLD}55`, borderRadius: 4, padding: '1px 5px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>unique</span>}
+              </div>
+              {m.mapped && m.value !== null ? (
+                <>
+                  <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 38, color: TEXT, lineHeight: 1 }}>{fmt(m.value)}</div>
+                  <div style={{ fontSize: 11, color: TEXT2, marginTop: 8 }}>
+                    {m.period ? `${m.period} · ` : ''}{m.sources.length} source{m.sources.length === 1 ? '' : 's'}
+                  </div>
+                </>
+              ) : (
+                <div style={{ fontSize: 13, color: TEXT2, fontStyle: 'italic', paddingTop: 6 }}>
+                  Not yet mapped — set its source in <strong style={{ color: GOLD }}>Definitions → Mapping</strong>.
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {loading && <div style={{ color: TEXT2, fontSize: 14 }}>Loading metrics…</div>}
       {err && <div style={{ color: DOWN, fontSize: 14 }}>Couldn’t load metrics: {err}</div>}

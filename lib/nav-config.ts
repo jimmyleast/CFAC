@@ -46,6 +46,7 @@ export function getCfacNav(isAdmin: boolean): NavSection[] {
         { label: 'Import', href: '/admin/data/import', icon: 'Upload', description: 'Import spreadsheet data' },
         { label: 'Data Integrity', href: '/admin/data/integrity', icon: 'ShieldAlert', description: 'Missing / mismatched entries' },
         { label: 'Definitions', href: '/admin/definitions', icon: 'BookMarked', description: 'How every metric is defined' },
+        { label: 'Metric Mapping', href: '/admin/mappings', icon: 'GitBranch', description: 'Source lineage behind each metric' },
       ],
     },
     {
