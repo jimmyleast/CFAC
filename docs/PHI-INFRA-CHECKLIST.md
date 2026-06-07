@@ -38,6 +38,8 @@ Railway has no broad HIPAA BAA → it stays the **non-PHI app tier only**.
 - [ ] Keep `CONNECTOR_ENC_KEY` (and ideally a KMS master key) in the BAA-covered host's secret store; rotate.
 - [ ] **Migrate the connector key off the DB.** For the soft launch the connector encryption key is auto-provisioned into `platform_secrets` (DB) when no env key is set — convenient, but it co-locates the key with the ciphertext. Before PHI: set `CONNECTOR_ENC_KEY` in the host secret store (it takes precedence), confirm `platform_secrets.connector_enc` is no longer the active key, and move to a KMS-held master key.
   - ⚠ **Re-seal on key change.** The env key takes precedence with no automatic re-encryption, so any *non-PHI* connector secret sealed with the auto-DB key becomes undecryptable once `CONNECTOR_ENC_KEY` is set. When adopting the env key (or rotating), **re-connect/re-enter the affected non-PHI connectors** (or run a one-time re-seal) so their stored secrets are re-encrypted under the new key.
+  - **Enforced in code (not just a checklist item):** once `PHI_GATE_READY=true`, the DB-key fallback is **refused for every `phiGated` provider**. `phiKeyBlocked()` (lib/connectors/providers.ts) blocks the connect (OAuth start + callback), the API-key POST, and token re-seals on sync (each refusal emits a `connector.phi_key.blocked` audit event); `assertPhiKeyInvariant()` runs at server startup (instrumentation.ts) and **fails the boot** if PHI mode is on without `CONNECTOR_ENC_KEY`. So flipping the gate without provisioning the strong key fails closed — it cannot silently seal PHI with the co-located DB key.
+  - **Runbook — if the deploy crash-loops right after you set `PHI_GATE_READY=true`:** this is the fail-closed guard, not a bug. Check the host (Railway) deploy logs for the `CONNECTOR_ENC_KEY` invariant message, set `CONNECTOR_ENC_KEY` in the **same** env group, and redeploy. Provision the key **first**, then flip the gate, to avoid the crash-loop entirely.
 
 ## 4. Data-handling controls (the technical layer)
 - [ ] **De-identification boundary live:** tokenize/redact before any LLM call; mapping in a separate, short-TTL store; audit logs hold tokens only. (`redactPHI` exists; extend to a tokenization layer for case data.)
@@ -48,7 +50,7 @@ Railway has no broad HIPAA BAA → it stays the **non-PHI app tier only**.
 
 ## 5. Flip the gate (only after 1–4 are done)
 Once the infra + BAAs are in place:
-1. Set **`PHI_GATE_READY=true`** in the (now BAA-covered) server env.
+1. **Provision `CONNECTOR_ENC_KEY` first**, then set **`PHI_GATE_READY=true`** in the (now BAA-covered) server env. Order matters: the startup invariant (`assertPhiKeyInvariant`) refuses to boot if the gate is on without the strong env key, so set the key before the gate. (The DB-key fallback stays valid only while the gate is closed, for non-PHI connectors.)
 2. Per provider, the registry `phiGated` flag + `PHI_GATE_READY` together unblock it:
    - Microsoft, DocuSign, Qualtrics become connectable.
    - Build/verify each PHI connector against real data on the BAA host.

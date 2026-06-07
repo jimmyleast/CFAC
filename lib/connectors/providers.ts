@@ -1,6 +1,8 @@
 // Provider registry — drives the connect-button UI and the OAuth/API-key flows.
 // Adding a provider = adding an entry here + its env vars (no route changes).
 
+import { isEnvKeyConfigured } from './key-env'
+
 export type AuthKind = 'oauth2' | 'apikey'
 export type BaaStatus = 'yes' | 'no' | 'unknown'
 
@@ -26,6 +28,39 @@ export type ProviderDef = {
 /** PHI infra prerequisites met (Supabase HIPAA add-on + BAA + PHI worker host). */
 export function isPhiGateReady(): boolean {
   return process.env.PHI_GATE_READY === 'true'
+}
+
+/**
+ * Once the PHI gate is open, a phiGated provider MUST be sealed with the strong
+ * operator-provisioned env key (CONNECTOR_ENC_KEY), never the auto-provisioned DB
+ * fallback that co-locates the key with its ciphertext. Returns true when a connect
+ * (or token re-seal) MUST be refused because the env key is absent. Non-PHI
+ * providers are never blocked by this — the DB key is an accepted soft-launch
+ * tradeoff for them. See docs/PHI-INFRA-CHECKLIST.md §3.
+ */
+export function phiKeyBlocked(id: string): boolean {
+  const p = getProvider(id)
+  if (!p) return false
+  return Boolean(p.phiGated) && isPhiGateReady() && !isEnvKeyConfigured()
+}
+
+/**
+ * Hard cross-cutting invariant: PHI mode (gate ready) and the co-located DB-key
+ * fallback must never coexist. With the gate open, the strong env key is mandatory
+ * for every phiGated provider — so this throws if PHI_GATE_READY is set without
+ * CONNECTOR_ENC_KEY. Fail-closed: called at server startup (instrumentation) and
+ * usable as a CI/test assertion. This is the prerequisite to verify before flipping
+ * PHI_GATE_READY.
+ */
+export function assertPhiKeyInvariant(): void {
+  if (isPhiGateReady() && !isEnvKeyConfigured()) {
+    throw new Error(
+      'PHI_GATE_READY=true but CONNECTOR_ENC_KEY is not set — refusing to let PHI ' +
+      'connector secrets be sealed with the co-located DB fallback key. Provision ' +
+      'CONNECTOR_ENC_KEY (32-byte base64 or hex) in the host secret store before ' +
+      'opening the PHI gate. See docs/PHI-INFRA-CHECKLIST.md §3.'
+    )
+  }
 }
 
 function msAuthority(): string {
@@ -137,9 +172,13 @@ export function isConfigured(id: string): boolean {
 }
 
 /** Reason a provider can't be connected yet (for clearer UI than "needs setup"). */
-export function blockedReason(id: string): 'phi_gate' | 'needs_setup' | null {
+export function blockedReason(id: string): 'phi_gate' | 'phi_key' | 'needs_setup' | null {
   const p = getProvider(id)
-  if (!p || isConfigured(id)) return null
+  if (!p) return null
+  // phi_gate (infra not ready) and phi_key (env key missing in PHI mode) are checked
+  // before isConfigured: phi_key can apply even when creds + gate are otherwise present.
   if (p.phiGated && !isPhiGateReady()) return 'phi_gate'
+  if (phiKeyBlocked(id)) return 'phi_key'
+  if (isConfigured(id)) return null
   return 'needs_setup'
 }

@@ -30,6 +30,10 @@ export type AppEventName =
   | 'agency.changed'
   | 'scorecard.changed'
   | 'connector.enc_key.created'
+  // A PHI provider connect/seal was refused because the gate is open but the strong
+  // CONNECTOR_ENC_KEY is not in force (DB-key fallback is not PHI-grade). High-signal:
+  // fires only when the PHI gate is misconfigured — see lib/connectors/providers.ts.
+  | 'connector.phi_key.blocked'
 
 export type AppEventCategory = 'funnel' | 'latency' | 'error' | 'quality' | 'system' | 'auth'
 

@@ -70,4 +70,13 @@ describe('OAuth callback — state binding & replay defense', () => {
     const res = await GET(req(), { params: { provider: 'quickbooks' } })
     expect(loc(res)).toContain('error=bad_state')
   })
+
+  it('BLOCKS a phiGated provider when the gate is open but the strong env key is missing → phi_key_required, no seal', async () => {
+    delete process.env.CONNECTOR_ENC_KEY // only the DB fallback would be available
+    process.env.PHI_GATE_READY = 'true'
+    const res = await GET(new Request('https://app/api/connect/microsoft/callback?code=abc&state=st1'), { params: { provider: 'microsoft' } })
+    expect(loc(res)).toContain('error=phi_key_required')
+    expect(mAdmin).not.toHaveBeenCalled() // refused before any DB access / token exchange / seal
+    delete process.env.PHI_GATE_READY
+  })
 })

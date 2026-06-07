@@ -2,6 +2,11 @@ import crypto from 'crypto'
 import { getAdminClient } from '@/lib/admin'
 import { emitAppEvent } from '@/lib/telemetry/events'
 
+// Re-exported so existing importers keep using '@/lib/connectors/crypto'. The check
+// itself lives in the edge-safe key-env module (no node:crypto) so policy code like
+// providers.ts can import it without dragging this node-only module into edge bundles.
+export { isEnvKeyConfigured } from './key-env'
+
 // App-level envelope encryption for connector secrets (OAuth tokens / API keys).
 // AES-256-GCM (authenticated). Ciphertext format: `v1.<iv>.<tag>.<ct>` (base64).
 // Only ciphertext is persisted.

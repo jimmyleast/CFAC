@@ -20,7 +20,10 @@ const withPWA = require('next-pwa')({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    serverComponentsExternalPackages: ['docx']
+    serverComponentsExternalPackages: ['docx'],
+    // Enables instrumentation.ts register() — a fail-closed startup guard that PHI
+    // mode never runs with the co-located DB-key fallback (see instrumentation.ts).
+    instrumentationHook: true
   }
 }
 
