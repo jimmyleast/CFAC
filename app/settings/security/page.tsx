@@ -16,7 +16,9 @@ type Factor = { id: string; friendly_name?: string | null; status: string }
 
 export default function SecurityPage() {
   const router = useRouter()
-  const supabase = createClient()
+  // Browser-only client: null during static prerender (no NEXT_PUBLIC_* at build),
+  // real client after hydration. All usage below is in effects/handlers (browser).
+  const [supabase] = useState(() => (typeof window === 'undefined' ? null : createClient()))
   const [factors, setFactors] = useState<Factor[]>([])
   const [loading, setLoading] = useState(true)
   const [enroll, setEnroll] = useState<{ id: string; qr: string; secret: string } | null>(null)
@@ -25,6 +27,7 @@ export default function SecurityPage() {
   const [msg, setMsg] = useState<string | null>(null)
 
   async function refresh() {
+    if (!supabase) return
     setLoading(true)
     const { data } = await supabase.auth.mfa.listFactors()
     setFactors([...(data?.totp || [])] as Factor[])
@@ -33,6 +36,7 @@ export default function SecurityPage() {
   useEffect(() => { refresh() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function startEnroll() {
+    if (!supabase) return
     setMsg(null); setBusy(true)
     const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: `Authenticator ${new Date().toISOString().slice(0, 10)}` })
     setBusy(false)
@@ -41,7 +45,7 @@ export default function SecurityPage() {
   }
 
   async function verifyEnroll() {
-    if (!enroll || !code.trim()) return
+    if (!supabase || !enroll || !code.trim()) return
     setMsg(null); setBusy(true)
     const ch = await supabase.auth.mfa.challenge({ factorId: enroll.id })
     if (ch.error) { setBusy(false); setMsg(ch.error.message); return }
@@ -53,6 +57,7 @@ export default function SecurityPage() {
   }
 
   async function removeFactor(id: string) {
+    if (!supabase) return
     setBusy(true)
     await supabase.auth.mfa.unenroll({ factorId: id })
     setBusy(false)

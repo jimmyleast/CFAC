@@ -17,7 +17,8 @@ function MfaChallengeInner() {
   // non-backslash char. Rejects //evil.com, /\evil.com, /\/evil.com, https://…
   // (browsers normalize backslashes to slashes, so they must be excluded too).
   const safeNext = /^\/[^/\\]/.test(next) ? next : '/home'
-  const supabase = createClient()
+  // Browser-only client: null during static prerender, real client after hydration.
+  const [supabase] = useState(() => (typeof window === 'undefined' ? null : createClient()))
   const [factorId, setFactorId] = useState<string | null>(null)
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
@@ -25,6 +26,7 @@ function MfaChallengeInner() {
   const [loading, setLoading] = useState(true)
 
   async function init() {
+    if (!supabase) return
     setLoading(true); setErr(null)
     try {
       const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
@@ -44,7 +46,7 @@ function MfaChallengeInner() {
   useEffect(() => { void init() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function verify() {
-    if (!factorId || code.length !== 6) return
+    if (!supabase || !factorId || code.length !== 6) return
     setBusy(true); setErr(null)
     try {
       // Create a fresh challenge at verify-time so it can't expire while the user types.
@@ -74,7 +76,7 @@ function MfaChallengeInner() {
               style={{ width: '100%', background: GOLD, color: '#0D0D0F', border: 'none', borderRadius: 8, padding: '13px', fontWeight: 600, fontSize: 15, cursor: 'pointer' }}>
               Retry
             </button>
-            <button onClick={async () => { await supabase.auth.signOut(); window.location.assign('/auth/login') }}
+            <button onClick={async () => { await supabase?.auth.signOut(); window.location.assign('/auth/login') }}
               style={{ background: 'none', border: 'none', color: TEXT2, fontSize: 12, marginTop: 16, cursor: 'pointer' }}>Sign out</button>
           </>
         ) : (
@@ -91,7 +93,7 @@ function MfaChallengeInner() {
               style={{ width: '100%', marginTop: 16, background: code.length === 6 ? GOLD : 'rgba(201,168,76,0.35)', color: '#0D0D0F', border: 'none', borderRadius: 8, padding: '13px', fontWeight: 600, fontSize: 15, cursor: code.length === 6 ? 'pointer' : 'not-allowed' }}>
               {busy ? 'Verifying…' : 'Verify'}
             </button>
-            <button onClick={async () => { await supabase.auth.signOut(); window.location.assign('/auth/login') }}
+            <button onClick={async () => { await supabase?.auth.signOut(); window.location.assign('/auth/login') }}
               style={{ background: 'none', border: 'none', color: TEXT2, fontSize: 12, marginTop: 16, cursor: 'pointer' }}>Sign out</button>
           </>
         )}
