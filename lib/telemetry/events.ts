@@ -21,6 +21,7 @@ export type AppEventName =
   | 'auth.mfa.admin_reset'
   | 'definition.updated'
   | 'mapping.changed'
+  | 'data.exceptions.scanned'
 
 export type AppEventCategory = 'funnel' | 'latency' | 'error' | 'quality' | 'system' | 'auth'
 
