@@ -72,10 +72,4 @@ describe('POST /api/connect-invites/[token] — public credential accept', () =>
     mAdmin.mockReturnValue(adminMock({ invite: { provider: 'bloomerang', expires_at: future(), used_at: null }, claim: { token: 'tok' }, upsertError: { message: 'db down' } }))
     expect((await POST(req({ apiKey: 'k' }), { params: { token: 'tok' } })).status).toBe(500)
   })
-
-  it('503 when token encryption is not configured', async () => {
-    delete process.env.CONNECTOR_ENC_KEY
-    mAdmin.mockReturnValue(adminMock({ invite: { provider: 'bloomerang', expires_at: future(), used_at: null } }))
-    expect((await POST(req({ apiKey: 'k' }), { params: { token: 'tok' } })).status).toBe(503)
-  })
 })

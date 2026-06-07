@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getAdminClient } from '@/lib/admin'
 import { getProvider } from '@/lib/connectors/providers'
 import { inviteStatus } from '@/lib/connectors/invites'
-import { encryptSecret, isEncryptionConfigured } from '@/lib/connectors/crypto'
+import { encryptSecret, ensureEncryptionKey } from '@/lib/connectors/crypto'
 import { rateLimit } from '@/lib/hope/ratelimit'
 import { emitAppEvent } from '@/lib/telemetry/events'
 
@@ -30,7 +30,7 @@ export async function GET(req: Request, { params }: { params: { token: string } 
 
 export async function POST(req: Request, { params }: { params: { token: string } }) {
   if (!rateLimit(clientIp(req), Date.now()).ok) return NextResponse.json({ status: 'rate_limited', error: 'Too many requests' }, { status: 429 })
-  if (!isEncryptionConfigured()) return NextResponse.json({ error: 'Connection storage is not configured. Contact your administrator.' }, { status: 503 })
+  if (!(await ensureEncryptionKey())) return NextResponse.json({ error: 'Connection storage temporarily unavailable. Try again.' }, { status: 503 })
 
   const admin = getAdminClient()
   const { data: invite } = await admin.from('connect_invites').select('provider, expires_at, used_at, label').eq('token', params.token).maybeSingle()

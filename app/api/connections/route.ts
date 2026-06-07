@@ -3,7 +3,7 @@ import { getAdminClient } from '@/lib/admin'
 import { requireUserMfa, requireAdmin } from '@/lib/auth/aal'
 import { emitAppEvent } from '@/lib/telemetry/events'
 import { PROVIDERS, getProvider, isConfigured, blockedReason, isPhiGateReady } from '@/lib/connectors/providers'
-import { encryptSecret, isEncryptionConfigured } from '@/lib/connectors/crypto'
+import { encryptSecret, ensureEncryptionKey } from "@/lib/connectors/crypto"
 
 export const dynamic = 'force-dynamic'
 
@@ -32,13 +32,13 @@ export async function GET(req: Request) {
       lastError: c?.last_error ?? null,
     }
   })
-  return NextResponse.json({ providers, encryptionReady: isEncryptionConfigured() })
+  return NextResponse.json({ providers, encryptionReady: await ensureEncryptionKey() })
 }
 
 export async function POST(req: Request) {
   const gate = await requireAdmin(req)
   if ('response' in gate) return gate.response
-  if (!isEncryptionConfigured()) return NextResponse.json({ error: 'Token encryption not configured (set CONNECTOR_ENC_KEY)' }, { status: 503 })
+  if (!(await ensureEncryptionKey())) return NextResponse.json({ error: 'Connection storage temporarily unavailable. Try again.' }, { status: 503 })
 
   const body = await req.json().catch(() => ({})) as { provider?: string; apiKey?: string; label?: string }
   const provider = getProvider(String(body.provider || ''))

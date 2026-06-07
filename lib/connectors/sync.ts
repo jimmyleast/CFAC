@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { decryptSecret, encryptSecret } from '@/lib/connectors/crypto'
+import { decryptSecret, encryptSecret, ensureEncryptionKey } from '@/lib/connectors/crypto'
 import { getProvider, providerEnv, type ProviderDef } from '@/lib/connectors/providers'
 
 // The sync engine: turns a stored connection into real data in the metrics layer.
@@ -108,6 +108,7 @@ export async function runSync(
   if (!conn || conn.status !== 'connected') return { ok: false, error: 'not connected' }
 
   try {
+    if (!(await ensureEncryptionKey())) throw new Error('encryption key unavailable — retry')
     const creds = await resolveCreds(admin, conn as ConnRow, provider, nowMs)
     const pulled = await connector.pull({ creds, nowMs, account: (conn as ConnRow).external_label })
 

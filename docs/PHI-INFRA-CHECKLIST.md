@@ -36,6 +36,7 @@ Railway has no broad HIPAA BAA → it stays the **non-PHI app tier only**.
 - [ ] Stand up a **BAA-covered compute host** for the PHI-touching workers (the sync workers + email-intake parser + Collaborate normalizer): AWS/GCP/Azure under their BAA, or Aptible/Fly with a BAA.
 - [ ] Move the connector **sync workers that pull PHI** to that host (the non-PHI connectors — Bloomerang/Qgiv/QuickBooks/Asana — can keep running on Railway since they carry no PHI).
 - [ ] Keep `CONNECTOR_ENC_KEY` (and ideally a KMS master key) in the BAA-covered host's secret store; rotate.
+- [ ] **Migrate the connector key off the DB.** For the soft launch the connector encryption key is auto-provisioned into `platform_secrets` (DB) when no env key is set — convenient, but it co-locates the key with the ciphertext. Before PHI: set `CONNECTOR_ENC_KEY` in the host secret store (it takes precedence), confirm `platform_secrets.connector_enc` is no longer the active key, and move to a KMS-held master key.
 
 ## 4. Data-handling controls (the technical layer)
 - [ ] **De-identification boundary live:** tokenize/redact before any LLM call; mapping in a separate, short-TTL store; audit logs hold tokens only. (`redactPHI` exists; extend to a tokenization layer for case data.)

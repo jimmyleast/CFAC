@@ -3,7 +3,7 @@ import { getAdminClient } from '@/lib/admin'
 import { requireAdmin } from '@/lib/auth/aal'
 import { getProvider, providerEnv } from '@/lib/connectors/providers'
 import { isStateExpired } from '@/lib/connectors/oauth'
-import { encryptSecret, isEncryptionConfigured } from '@/lib/connectors/crypto'
+import { encryptSecret, ensureEncryptionKey } from '@/lib/connectors/crypto'
 import { resolveAppBaseUrl } from '@/lib/url'
 import { emitAppEvent } from '@/lib/telemetry/events'
 
@@ -21,7 +21,7 @@ export async function GET(req: Request, { params }: { params: { provider: string
 
   const provider = getProvider(params.provider)
   if (!provider || provider.authKind !== 'oauth2') return back('error=unknown_provider')
-  if (!isEncryptionConfigured()) return back('error=encryption_not_configured')
+  if (!(await ensureEncryptionKey())) return back('error=encryption_not_configured')
 
   const url = new URL(req.url)
   const code = url.searchParams.get('code')
