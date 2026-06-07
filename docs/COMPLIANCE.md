@@ -12,16 +12,16 @@ CFAC handles child-abuse-victim and family-crisis data. This app **must** be HIP
 - **PHI gate:** before any client-PII/PHI table is added (clients, cases, mental-health, residential, Collaborate/MDT data), the controls in §5 must be in place.
 
 ## 2. Subprocessors & BAA tracker  ⬅️ ACTION REQUIRED (Jimmy)
-A signed BAA is required with every vendor that could touch PHI. **Send each vendor their BAA/DPA and track signature here.**
+A signed BAA is required with every vendor that could touch PHI. **Send each vendor their BAA/DPA and track signature here.** Ready-to-send outreach emails (one per vendor, with the specific ask) live in [docs/baa-outreach-emails.md](baa-outreach-emails.md).
 
-| Vendor | Role | PHI exposure | BAA status |
-|---|---|---|---|
-| Supabase | Database, auth | Yes (when client tables added) | ☐ obtain |
-| Railway | App hosting | Yes (in transit/logs) | ☐ obtain |
-| Anthropic (Claude) | LLM generator + critic | Aggregate only today | ☐ obtain (Anthropic offers BAA + zero-retention) |
-| OpenAI | LLM critic | Aggregate only today | ☐ obtain BAA + zero-retention, OR move to Azure OpenAI |
-| Google (Gemini) | LLM critic | Aggregate only today | ⚠ AI Studio API is **NOT** HIPAA-eligible — move to **Vertex AI** (GCP) under BAA before any PHI |
-| Resend | Transactional email | Minimal (addresses) | ☐ obtain DPA/BAA |
+| Vendor | Role | PHI exposure | BAA status | Contact / link & notes |
+|---|---|---|---|---|
+| Supabase | Database, auth | Yes (when client tables added) | ☐ obtain | `sales@supabase.com` / dashboard support · [HIPAA docs](https://supabase.com/docs/guides/security/hipaa-compliance) — needs **Team/Enterprise + HIPAA add-on**; confirm encryption-at-rest |
+| Railway | App hosting | Yes (in transit/logs) | ☐ obtain | `team@railway.app` / `security@railway.app` · [DPA](https://railway.com/legal/dpa) — ⚠ may not sign a BAA; if not, move hosting to a HIPAA-eligible host |
+| Anthropic (Claude) | LLM generator + critic | Aggregate only today | ☐ obtain (BAA + zero-retention) | `privacy@anthropic.com` / sales · [trust.anthropic.com](https://trust.anthropic.com) |
+| OpenAI | LLM critic | Aggregate only today | ☐ obtain BAA + zero-retention, OR move to Azure OpenAI | `privacy@openai.com` / sales · [BAA policy](https://openai.com/policies/business-associate-agreement) — ⚠ Azure OpenAI path makes **Microsoft** a business associate under its own BAA |
+| Google (Gemini) | LLM critic | Aggregate only today | ⚠ AI Studio API is **NOT** HIPAA-eligible — move to **Vertex AI** (GCP) under BAA before any PHI | Google Cloud sales · [GCP HIPAA](https://cloud.google.com/security/compliance/hipaa) — code currently calls `generativelanguage.googleapis.com` at `lib/hope/providers.ts:60` |
+| Resend | Transactional email | Minimal (addresses) | ☐ obtain DPA/BAA | `support@resend.com` · [DPA](https://resend.com/legal/dpa) — mitigate by keeping PHI out of all email bodies/subjects by design |
 
 **LLM nuance:** today only aggregate non-PII reaches the models, so this is low-risk. Before PHI could flow to the critic, restrict cross-model critique to BAA-covered endpoints (Anthropic; Azure OpenAI; Vertex Gemini) — the critic provider is intended to be configurable for exactly this.
 
@@ -61,7 +61,7 @@ A signed BAA is required with every vendor that could touch PHI. **Send each ven
 - **Follow-up:** add self-service recovery codes before scaling staff count.
 
 ## 6. Open action items (owner: Jimmy)
-- [ ] Obtain & sign BAAs/DPAs for all vendors in §2.
+- [ ] Obtain & sign BAAs/DPAs for all vendors in §2 — outreach templates ready in [docs/baa-outreach-emails.md](baa-outreach-emails.md).
 - [ ] Enable MFA on Supabase, Railway, GitHub; require for app logins.
 - [ ] Rotate all API keys / DB password.
 - [ ] Move Gemini critic to Vertex AI (or drop Gemini) before any PHI.
