@@ -81,6 +81,15 @@ async function refreshOAuth(admin: SupabaseClient, conn: ConnRow, provider: Prov
   return t.access_token
 }
 
+/** Coerce a period_start to a strict ISO calendar date (YYYY-MM-DD) or null.
+ * The metrics column is `date`; a free-form connector string (e.g. 'Q1 2026')
+ * would otherwise throw inside the swap and wedge the whole source. */
+function toIsoDate(v?: string): string | null {
+  if (!v) return null
+  const s = String(v).slice(0, 10)
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s)) ? s : null
+}
+
 /** Map pulled metrics to metric rows for a source, deduped by (metric_key, period)
  * so one pull can't double-count. Pure. */
 export function toMetricRows(pulled: PulledMetric[], sourceId: string) {
@@ -94,7 +103,7 @@ export function toMetricRows(pulled: PulledMetric[], sourceId: string) {
       value: m.value,
       unit: m.unit || 'count',
       period_label: m.period_label || null,
-      period_start: m.period_start || null,
+      period_start: toIsoDate(m.period_start),
       dimension: {},
     })
   }
@@ -130,7 +139,14 @@ export async function runSync(
     .eq('provider', providerId)
     .or(`sync_lock_until.is.null,sync_lock_until.lt."${nowIso}"`)
     .select('id')
-  if (claimErr) return { ok: false, error: 'could not acquire sync lock' }
+  if (claimErr) {
+    // A claim UPDATE error is a real DB fault (e.g. the sync_lock columns/migration
+    // missing) — not a benign skip. Record it so a wedged provider is visible on the
+    // connection badge instead of silently no-op'ing every sync.
+    const msg = `could not acquire sync lock: ${(claimErr as { code?: string }).code || ''} ${(claimErr as { message?: string }).message || ''}`.trim()
+    await admin.from('connections').update({ status: 'error', last_error: msg.slice(0, 300), updated_at: nowIso }).eq('provider', providerId).then(() => {}, () => {})
+    return { ok: false, error: msg }
+  }
   if (!claimed || claimed.length === 0) return { ok: false, skipped: true, error: 'sync already running' }
 
   try {
@@ -146,15 +162,15 @@ export async function runSync(
     if (!src) throw new Error('could not resolve data source')
 
     const rows = toMetricRows(pulled, src.id)
-    // Non-destructive swap: capture the existing rows, insert the new set, and only
-    // THEN prune the old ones. A failed pull/insert therefore never empties the
-    // source's metrics (no blank-dashboard window). An empty pull leaves data as-is.
+    // Atomic swap: delete the source's old metrics and insert the fresh set in ONE
+    // transaction (replace_source_metrics RPC). A failure rolls both back, so the
+    // source is never two live sets (no double-count) and never momentarily empty
+    // (no blank-dashboard window). An empty pull leaves data as-is.
     if (rows.length) {
-      const { data: old } = await admin.from('metrics').select('id').eq('source_id', src.id)
-      const oldIds = (old || []).map((o: { id: string }) => o.id)
-      const ins = await admin.from('metrics').insert(rows)
-      if (ins.error) throw new Error('metrics insert failed')
-      if (oldIds.length) await admin.from('metrics').delete().in('id', oldIds)
+      const { error: swapErr } = await admin.rpc('replace_source_metrics', { p_source_id: src.id, p_rows: rows })
+      // Carry the DB SQLSTATE + message so last_error/telemetry can tell a retryable
+      // timeout (57014) from a poison-pill data error (22xxx/23xxx) at 2am.
+      if (swapErr) throw new Error(`metrics swap failed (${rows.length} rows): ${(swapErr as { code?: string }).code || ''} ${(swapErr as { message?: string }).message || swapErr}`.trim())
     }
     await admin.from('connections').update({ last_sync_at: new Date(nowMs).toISOString(), last_error: null, status: 'connected' }).eq('provider', providerId)
     return { ok: true, rows: rows.length }

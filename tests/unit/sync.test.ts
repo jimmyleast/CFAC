@@ -16,13 +16,25 @@ describe('toMetricRows', () => {
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({ source_id: 'src1', metric_key: 'a', value: 5, unit: 'usd', period_label: '2026' })
   })
+
+  it('normalizes period_start to ISO date or null (the metrics column is `date`)', () => {
+    const rows = toMetricRows([
+      { metric_key: 'iso', label: 'I', value: 1, period_start: '2026-03-01' },              // valid → kept
+      { metric_key: 'ts', label: 'T', value: 1, period_start: '2026-03-01T12:00:00Z' },     // timestamp → date part
+      { metric_key: 'junk', label: 'J', value: 1, period_start: 'Q1 2026' },                // unparseable → null
+      { metric_key: 'none', label: 'N', value: 1 },                                          // absent → null
+    ], 's')
+    const byKey = Object.fromEntries(rows.map((r) => [r.metric_key, r.period_start]))
+    expect(byKey).toEqual({ iso: '2026-03-01', ts: '2026-03-01', junk: null, none: null })
+  })
 })
 
-// Chainable admin mock for runSync. `track.pruned` flips true if old metrics were
-// deleted. `claimHeld` simulates the per-provider sync lock already being held
-// (claim returns zero rows). `claimErr` simulates a DB error on the claim UPDATE.
-// Default: the claim succeeds.
-function adminMock({ conn, srcId, insertError, track, claimHeld, claimErr }: { conn: unknown; srcId?: string; insertError?: unknown; track?: { pruned?: boolean }; claimHeld?: boolean; claimErr?: unknown }) {
+// Chainable admin mock for runSync. `track.swapped` flips true when the atomic
+// swap RPC is invoked. `claimHeld` simulates the per-provider sync lock already
+// being held (claim returns zero rows). `claimErr` simulates a DB error on the
+// claim UPDATE; `swapError` simulates a failed swap transaction. Default: claim
+// + swap both succeed.
+function adminMock({ conn, srcId, swapError, track, claimHeld, claimErr }: { conn: unknown; srcId?: string; swapError?: unknown; track?: { swapped?: boolean }; claimHeld?: boolean; claimErr?: unknown }) {
   // update().eq() serves the claim (.or().select('id')), the plain status writes
   // (await / .then() after one .eq), and the ownership-checked release (a second
   // .eq('sync_lock_token') then .then()). The eq node is reusable + thenable.
@@ -32,6 +44,10 @@ function adminMock({ conn, srcId, insertError, track, claimHeld, claimErr }: { c
     then: (r: (v: unknown) => void) => r({ data: null, error: null }),
   }
   return {
+    rpc: async (_fn: string, args: { p_rows: unknown[] }) => {
+      if (track) track.swapped = true
+      return swapError ? { data: null, error: swapError } : { data: args.p_rows.length, error: null }
+    },
     from: (table: string) => {
       if (table === 'connections') return {
         select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: conn }) }) }),
@@ -39,11 +55,6 @@ function adminMock({ conn, srcId, insertError, track, claimHeld, claimErr }: { c
       }
       if (table === 'data_sources') return {
         upsert: () => ({ select: () => ({ maybeSingle: async () => ({ data: srcId ? { id: srcId } : null }) }) }),
-      }
-      if (table === 'metrics') return {
-        select: () => ({ eq: async () => ({ data: [{ id: 'old1' }, { id: 'old2' }] }) }), // existing rows
-        insert: async () => ({ error: insertError || null }),
-        delete: () => ({ in: async () => { if (track) track.pruned = true; return {} } }),
       }
       return {}
     },
@@ -68,21 +79,20 @@ describe('runSync', () => {
     expect(r.error).toMatch(/not connected/)
   })
 
-  it('pulls, normalizes, inserts new THEN prunes old (non-destructive swap)', async () => {
-    const track: { pruned?: boolean } = {}
+  it('pulls, normalizes, and swaps metrics atomically via the RPC', async () => {
+    const track: { swapped?: boolean } = {}
     const conn = { provider: 'bloomerang', status: 'connected', auth_kind: 'apikey', api_key_enc: encryptSecret('secret-key'), access_token_enc: null, refresh_token_enc: null, token_expires_at: null }
     const r = await runSync(adminMock({ conn, srcId: 'src1', track }), 'bloomerang', { bloomerang: okConnector }, Date.now())
     expect(r.ok).toBe(true)
     expect(r.rows).toBe(1)
-    expect(track.pruned).toBe(true) // old rows pruned only after a successful insert
+    expect(track.swapped).toBe(true) // single atomic swap, not insert-then-delete
   })
 
-  it('BLOCKER-fix: a failed insert does NOT prune old metrics (no data loss)', async () => {
-    const track: { pruned?: boolean } = {}
+  it('BLOCKER-fix: a failed swap surfaces as an error (transaction rolls back, no data loss)', async () => {
     const conn = { provider: 'bloomerang', status: 'connected', auth_kind: 'apikey', api_key_enc: encryptSecret('k'), token_expires_at: null }
-    const r = await runSync(adminMock({ conn, srcId: 'src1', insertError: { message: 'db down' }, track }), 'bloomerang', { bloomerang: okConnector }, Date.now())
+    const r = await runSync(adminMock({ conn, srcId: 'src1', swapError: { message: 'db down' } }), 'bloomerang', { bloomerang: okConnector }, Date.now())
     expect(r.ok).toBe(false)
-    expect(track.pruned).toBeUndefined() // old metrics preserved
+    expect(r.error).toMatch(/metrics swap failed/) // atomic: old data preserved by rollback
   })
 
   it('records an error (never throws) when the connector pull fails', async () => {
@@ -116,7 +126,9 @@ describe('runSync', () => {
 // ownership-checked release (.eq('sync_lock_token') gates the null-out). Used to
 // prove overlapping runs don't double the metric set and the lock is released.
 // `track.lastOr` captures the most recent claim filter string for format checks.
-function sharedStoreAdmin(store: { conn: Record<string, unknown>; metrics: { id: string; source_id: string }[]; seq: number }, track?: { lastOr?: string }) {
+// `swapError` makes the atomic swap RPC fail (transaction rollback) so callers can
+// assert prior metrics are preserved.
+function sharedStoreAdmin(store: { conn: Record<string, unknown>; metrics: { id: string; source_id: string }[]; seq: number }, track?: { lastOr?: string }, swapError?: unknown) {
   const claimable = (orStr: string) => {
     const lock = store.conn.sync_lock_until as string | null
     if (!lock) return true
@@ -124,6 +136,14 @@ function sharedStoreAdmin(store: { conn: Record<string, unknown>; metrics: { id:
     return m ? Date.parse(lock) < Date.parse(m[1]) : false
   }
   return {
+    // Atomic swap: replace ALL of the source's rows in one shot, mirroring the
+    // replace_source_metrics transaction. On error nothing changes (rollback).
+    rpc: async (_fn: string, args: { p_source_id: string; p_rows: { metric_key: string }[] }) => {
+      if (swapError) return { data: null, error: swapError }
+      store.metrics = store.metrics.filter((m) => m.source_id !== args.p_source_id)
+      for (const row of args.p_rows) store.metrics.push({ ...row, source_id: args.p_source_id, id: `m${store.seq++}` })
+      return { data: args.p_rows.length, error: null }
+    },
     from: (table: string) => {
       if (table === 'connections') return {
         select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: store.conn }) }) }),
@@ -150,11 +170,6 @@ function sharedStoreAdmin(store: { conn: Record<string, unknown>; metrics: { id:
       }
       if (table === 'data_sources') return {
         upsert: () => ({ select: () => ({ maybeSingle: async () => ({ data: { id: 'src1' } }) }) }),
-      }
-      if (table === 'metrics') return {
-        select: () => ({ eq: async () => ({ data: store.metrics.filter((m) => m.source_id === 'src1').map((m) => ({ id: m.id })) }) }),
-        insert: async (rows: { source_id: string }[]) => { for (const row of rows) store.metrics.push({ ...row, id: `m${store.seq++}` } as { id: string; source_id: string }); return { error: null } },
-        delete: () => ({ in: async (_c: string, ids: string[]) => { store.metrics = store.metrics.filter((m) => !ids.includes(m.id)); return {} } }),
       }
       return {}
     },
@@ -233,6 +248,38 @@ describe('runSync — concurrency guard', () => {
     // Pin the exact format: the ISO value (containing '.' and ':') MUST be double-
     // quoted or PostgREST would mis-split it on the '.' in the milliseconds.
     expect(track.lastOr).toBe('sync_lock_until.is.null,sync_lock_until.lt."2026-06-07T07:00:00.000Z"')
+  })
+
+  it('atomic swap REPLACES the metric set — two sequential runs never double it', async () => {
+    const store = makeStore()
+    const admin = sharedStoreAdmin(store)
+    await runSync(admin, 'bloomerang', { bloomerang: twoMetric }, Date.now())
+    expect(store.metrics).toHaveLength(2)
+    // A second clean run replaces in one transaction — still one pull's worth, not 4.
+    await runSync(admin, 'bloomerang', { bloomerang: twoMetric }, Date.now())
+    expect(store.metrics).toHaveLength(2)
+  })
+
+  it('atomic swap failure preserves the prior metric set (rollback, no data loss)', async () => {
+    const store = makeStore()
+    store.metrics = [{ id: 'old1', source_id: 'src1' }, { id: 'old2', source_id: 'src1' }] // existing data
+    const admin = sharedStoreAdmin(store, undefined, { message: 'tx failed' }) // swap RPC errors
+    const r = await runSync(admin, 'bloomerang', { bloomerang: twoMetric }, Date.now())
+    expect(r.ok).toBe(false)
+    expect(r.error).toMatch(/metrics swap failed/)
+    expect(store.metrics).toEqual([{ id: 'old1', source_id: 'src1' }, { id: 'old2', source_id: 'src1' }]) // untouched
+    expect(store.conn.sync_lock_until).toBeNull() // lock still released on failure
+  })
+
+  it('an empty pull is a no-op: no swap, existing metrics retained, run still ok', async () => {
+    const store = makeStore()
+    store.metrics = [{ id: 'old1', source_id: 'src1' }] // pre-existing data
+    const empty: Connector = { id: 'bloomerang', pull: async () => [] }
+    const r = await runSync(sharedStoreAdmin(store), 'bloomerang', { bloomerang: empty }, Date.now())
+    expect(r.ok).toBe(true)
+    expect(r.rows).toBe(0)
+    expect(store.metrics).toEqual([{ id: 'old1', source_id: 'src1' }]) // not wiped (RPC never called)
+    expect(store.conn.sync_lock_until).toBeNull() // lock released
   })
 })
 
