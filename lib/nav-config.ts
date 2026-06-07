@@ -42,6 +42,7 @@ export function getCfacNav(isAdmin: boolean): NavSection[] {
       section: 'INSIGHTS',
       items: [
         { label: 'Executive Dashboard', href: '/executive', icon: 'LayoutDashboard', description: 'Org pulse check' },
+        { label: 'Scorecard', href: '/scorecard', icon: 'Target', description: 'EOS weekly leading indicators' },
         { label: 'Data Sources', href: '/admin/data', icon: 'Database', description: 'Spreadsheets, forms, systems' },
         { label: 'Import', href: '/admin/data/import', icon: 'Upload', description: 'Import spreadsheet data' },
         { label: 'Data Integrity', href: '/admin/data/integrity', icon: 'ShieldAlert', description: 'Missing / mismatched entries' },
