@@ -137,6 +137,16 @@ export async function GET(request: Request) {
   const publicRequests = hopeRequests.filter((e) => e.route === '/api/hope/public').length
   const rateLimited = hopeErrors.filter((e) => (e.status || '').startsWith('rate_limited')).length
 
+  // --- On-the-fly views health ---
+  const viewsRequested = hopeResponses.filter((e) => e.metadata?.viewRequested === true).length
+  const viewsRendered = hopeResponses.filter((e) => e.metadata?.hasCard === true).length
+  const viewErrors = events.filter((e) => e.event_name === 'hope.view.error').length
+  // Resolve-failure rate: of requested views, how many failed to produce a card
+  // (either threw — counted in viewErrors — or matched no data).
+  const viewResolveFailRatePct = viewsRequested
+    ? Number((((viewsRequested - viewsRendered) / viewsRequested) * 100).toFixed(1))
+    : null
+
   // Worst staleness reported by any answer in range (data-freshness alarm).
   const reportedStale = hopeResponses
     .map((e) => (typeof e.metadata?.staleDays === 'number' ? (e.metadata!.staleDays as number) : null))
@@ -172,10 +182,13 @@ export async function GET(request: Request) {
       verified, unverified, blocked, criticNone, criticError,
       verifiedRatePct: totalAnswers ? Number(((verified / totalAnswers) * 100).toFixed(1)) : null,
       publicRequests, rateLimited, maxStaleDays,
+      viewsRequested, viewsRendered, viewErrors, viewResolveFailRatePct,
       alerts: [
         ...(criticError > 0 ? [`Critic provider failing — ${criticError} answer(s) blocked by critic error`] : []),
         ...(criticNone > 0 ? [`No critic configured — ${criticNone} answer(s) shipped unverified`] : []),
         ...(maxStaleDays !== null && maxStaleDays > 60 ? [`Hope answered from data ${maxStaleDays}d stale`] : []),
+        ...(viewErrors > 0 ? [`On-the-fly views failing — ${viewErrors} view query error(s) (check metrics access)`] : []),
+        ...(viewResolveFailRatePct !== null && viewResolveFailRatePct > 50 && viewsRequested >= 4 ? [`${viewResolveFailRatePct}% of requested views resolved no data`] : []),
       ],
     },
     freshness: { staleSources },

@@ -16,6 +16,8 @@ export type HopeResult = {
   iterations: number
   staleDays: number | null
   card: HopeViewCard | null
+  viewRequested: boolean
+  viewError: boolean
 }
 
 const SAFE_FALLBACK =
@@ -86,14 +88,17 @@ export async function runHopePipeline(query: string, history: ChatMessage[] = []
     // Resolve an on-the-fly view ONLY for verified answers. Values come from the
     // DB (not the model), independently grounded and scoped to the catalog keys.
     let card: HopeViewCard | null = null
+    let viewError = false
     const spec = parseViewSpec(raw)
     if (spec) {
-      try { card = await resolveViewCard(spec, getAdminClient(), catalog.metricKeys) } catch { card = null }
+      // A view was requested. A null result with no error means "no data matched";
+      // a thrown query means the feature is broken — surface that, don't swallow it.
+      try { card = await resolveViewCard(spec, getAdminClient(), catalog.metricKeys) } catch { viewError = true }
     }
-    return { answer, followups, verified: true, verdict, iterations, staleDays: catalog.staleDays, card }
+    return { answer, followups, verified: true, verdict, iterations, staleDays: catalog.staleDays, card, viewRequested: !!spec, viewError }
   }
   // No critic configured at all → degraded pass (should not happen in prod, where critic keys exist).
-  if (verdict.critic === 'none') return { answer, followups, verified: false, verdict, iterations, staleDays: catalog.staleDays, card: null }
+  if (verdict.critic === 'none') return { answer, followups, verified: false, verdict, iterations, staleDays: catalog.staleDays, card: null, viewRequested: false, viewError: false }
   // Critic outage or failed verification after retries → block with a safe fallback.
-  return { answer: SAFE_FALLBACK, followups: [], verified: false, verdict, iterations, staleDays: catalog.staleDays, card: null }
+  return { answer: SAFE_FALLBACK, followups: [], verified: false, verdict, iterations, staleDays: catalog.staleDays, card: null, viewRequested: false, viewError: false }
 }

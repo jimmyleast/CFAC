@@ -36,6 +36,8 @@ export type HopeViewCard = {
 
 const MAX_KEYS = 8
 const VIEW_TAG = '[[VIEW]]'
+// Bound the read so a single view turn can't materialize an unbounded result set.
+const VIEW_ROW_LIMIT = 2000
 
 /** Schema guard: coerce an untrusted object into a valid spec, or null. */
 export function coerceViewSpec(obj: unknown): HopeViewSpec | null {
@@ -101,6 +103,7 @@ export async function resolveViewCard(
     .in('metric_key', keys)
     .not('period_start', 'is', null)
     .order('period_start', { ascending: true })
+    .limit(VIEW_ROW_LIMIT)
 
   // Group by composite identity (key|source|dimension) so a metric broken down by
   // agency/source is never merged into one misleading series. For each metric_key

@@ -9,7 +9,8 @@ function mockAdmin(rows: unknown[]): SupabaseClient {
     select: () => chain,
     in: () => chain,
     not: () => chain,
-    order: () => Promise.resolve({ data: rows }),
+    order: () => chain,
+    limit: () => Promise.resolve({ data: rows }),
   }
   return { from: () => chain } as unknown as SupabaseClient
 }
@@ -47,6 +48,16 @@ describe('parseViewSpec / stripViewLine', () => {
     expect(stripped).not.toContain('[[VIEW]]')
     expect(stripped).toContain('[[FOLLOWUPS]]')
     expect(stripped.startsWith('Answer text.')).toBe(true)
+  })
+  it('strips a trailing view block (no following [[FOLLOWUPS]]) — JSON never leaks', () => {
+    const raw = 'Answer text.\n[[VIEW]] {"title":"x","metricKeys":["a"]}'
+    const stripped = stripViewLine(raw)
+    expect(stripped).not.toContain('[[VIEW]]')
+    expect(stripped).not.toContain('{')
+    expect(stripped).toBe('Answer text.')
+  })
+  it('returns null for malformed JSON after the tag', () => {
+    expect(parseViewSpec('x [[VIEW]] {not valid json')).toBeNull()
   })
 })
 

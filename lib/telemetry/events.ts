@@ -6,6 +6,7 @@ export type AppEventName =
   | 'hope.chat.request'
   | 'hope.chat.response'
   | 'hope.chat.error'
+  | 'hope.view.error'
   | 'hope.inventory.preview'
   | 'hope.inventory.confirmed'
   | 'hope.inventory.cancelled'

@@ -43,8 +43,15 @@ export async function POST(req: Request) {
           eventName: 'hope.chat.response', category: 'latency', userId: user.id, route: '/api/hope/unified',
           status: result.verified ? 'verified' : (result.verdict.critic === 'none' ? 'unverified' : 'blocked'),
           durationMs: elapsedMs(startedAt),
-          metadata: { verified: result.verified, critic: result.verdict.critic, score: result.verdict.score, iterations: result.iterations, staleDays: result.staleDays, hasCard: !!result.card },
+          metadata: { verified: result.verified, critic: result.verdict.critic, score: result.verdict.score, iterations: result.iterations, staleDays: result.staleDays, hasCard: !!result.card, viewRequested: result.viewRequested },
         })
+        // Surface a broken view feature (query threw) instead of silently degrading to prose.
+        if (result.viewError) {
+          void emitAppEvent({
+            eventName: 'hope.view.error', category: 'error', userId: user.id, route: '/api/hope/unified',
+            status: 'view_resolve_failed', durationMs: elapsedMs(startedAt),
+          })
+        }
       } catch (err: any) {
         // Generic message to the user; raw detail only in telemetry.
         send({ token: 'I hit a problem answering that. Please try again in a moment.' })

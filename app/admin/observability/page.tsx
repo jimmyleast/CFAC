@@ -29,6 +29,7 @@ type ObservabilityPayload = {
   hope: {
     verified: number; unverified: number; blocked: number; criticNone: number; criticError: number
     verifiedRatePct: number | null; publicRequests: number; rateLimited: number; maxStaleDays: number | null
+    viewsRequested: number; viewsRendered: number; viewErrors: number; viewResolveFailRatePct: number | null
     alerts: string[]
   }
   freshness: { staleSources: Array<{ name: string; lastImported: string | null; staleDays: number | null }> }
@@ -145,6 +146,11 @@ export default function ObservabilityPage() {
             <Kpi label="Error rate" value={`${payload.summary.errorRatePct}%`} accent={payload.summary.errorRatePct > 5 ? CRITICAL : SUCCESS} />
             <Kpi label="Avg / P95 latency" value={`${payload.summary.avgLatencyMs} / ${payload.summary.p95LatencyMs} ms`} />
             <Kpi label="Public chats" value={payload.hope.publicRequests} />
+            <Kpi
+              label="Views rendered"
+              value={`${payload.hope.viewsRendered} / ${payload.hope.viewsRequested}`}
+              accent={payload.hope.viewResolveFailRatePct !== null && payload.hope.viewResolveFailRatePct > 50 && payload.hope.viewsRequested >= 4 ? CRITICAL : SUCCESS}
+            />
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 10, marginBottom: 12 }}>
