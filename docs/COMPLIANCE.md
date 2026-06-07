@@ -37,7 +37,7 @@ Legend — **Status:** ☐ Not started · ◐ Requested / in progress · ☑ Sig
 | 1 | **Supabase** | Database + Auth (Postgres) | **Yes** (system of record once PHI added) | BAA | ☐ | HIPAA add-on requires **Team or Enterprise** plan | Dashboard → Support, or `sales@supabase.com` · https://supabase.com/docs/guides/security/hipaa-compliance · https://supabase.com/security | Confirm **encryption-at-rest** (default) and that HIPAA add-on is enabled on the project before PHI. |
 | 2 | **Railway** | App hosting (Docker) | **Yes** (runs the app; PHI in transit/logs possible) | BAA / DPA | ☐ | TBD — confirm Railway will sign | `team@railway.app` / `security@railway.app` · https://railway.com/legal/dpa | ⚠️ **Risk:** Railway has not historically advertised HIPAA/BAA. If they decline, hosting must move to a HIPAA-eligible host (AWS/GCP/Azure, Render+BAA, Aptible, Fly.io). See §6. |
 | 3 | **Anthropic** | Claude — LLM **generator** (primary) + critic | No today (aggregate only); guardrail-critical | BAA + **zero-retention** | ☐ | Commercial / Enterprise | `privacy@anthropic.com` / sales · https://www.anthropic.com/legal/commercial-terms · https://trust.anthropic.com | Request BAA **and** zero-data-retention (ZDR) so prompts aren't retained for training/abuse logging. |
-| 4 | **OpenAI** | LLM **critic** (cross-model critique) | No today (aggregate only) | BAA + **ZDR** | ☐ | API platform (eligible accounts) | `privacy@openai.com` / sales · https://openai.com/policies/business-associate-agreement | Alternative if BAA/ZDR is slow: **Azure OpenAI** (covered under Microsoft's standard BAA). |
+| 4 | **OpenAI** | LLM **critic** (cross-model critique) | No today (aggregate only) | BAA + **ZDR** | ☐ | API platform (eligible accounts) | `privacy@openai.com` / sales · https://openai.com/policies/business-associate-agreement | Alternative if BAA/ZDR is slow: **Azure OpenAI**. ⚠️ If that path is taken, **Microsoft** becomes a business associate under its own BAA — add a tracker row for it then. |
 | 5 | **Google / Gemini** | LLM **critic** (cross-model critique) | No today (aggregate only) | BAA via **Vertex AI** | ☐ | **Vertex AI on Google Cloud** (not AI Studio) | Google Cloud sales · https://cloud.google.com/security/compliance/hipaa | ⚠️ Current code uses the **AI Studio** endpoint `generativelanguage.googleapis.com` ([lib/hope/providers.ts:60](../lib/hope/providers.ts)) which is **NOT HIPAA-eligible**. Migrate critic to **Vertex AI** under the GCP BAA, or **drop Gemini** as a critic. See §6. |
 | 6 | **Resend** | Transactional email (auth/invite) | **Structurally no** if emails carry no PHI | DPA (BAA if any PHI possible) | ☐ | Confirm | `support@resend.com` · https://resend.com/legal/dpa | Mitigating control: keep PHI **out** of all email bodies/subjects (login links + non-identifying notices only). Obtain DPA; request BAA if a PHI path is ever introduced. |
 
@@ -54,12 +54,20 @@ Aggregate metrics ──► Supabase ──► App (Railway) ──► Hope pipe
 Auth / invites ──► Resend (no PHI in body)
 ```
 
-## 4. Technical controls in place / planned
+## 4. Technical controls
 
-- De-identification at the query layer before any LLM call (aggregate-only today).
+> No BAA/DPA is signed yet — every row in §2 is at ☐. The items below are technical
+> controls, separate from the contractual agreements still being executed.
+
+**In place today:**
+- Only aggregate, non-PII metrics are sent to LLMs (de-identification at the query layer).
 - No external memory store of client data; LLM calls are stateless.
-- Role-scoped access (Supabase RLS) — verify policies before PHI.
-- Encryption in transit (HTTPS) everywhere; encryption at rest to be confirmed per vendor (§2).
+- Encryption in transit (HTTPS) everywhere.
+
+**To verify / harden before PHI:**
+- Role-scoped access (Supabase RLS) — confirm policies per role.
+- Encryption at rest — confirm per vendor (§2).
+- "No PHI in email" guard for the Resend path (§6).
 
 ## 5. Sequencing rule
 
