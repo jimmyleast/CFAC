@@ -96,7 +96,8 @@ export default function ComponentPage() {
               {tiles.map((t) => {
                 const up = (t.deltaPct ?? 0) >= 0
                 return (
-                  <div key={t.key} style={{ background: BG2, border: `1px solid ${LINE}`, borderRadius: 10, padding: '14px 16px' }}>
+                  <div key={t.key} onClick={() => router.push(`/metric/${encodeURIComponent(t.key)}`)} title="Click to drill in"
+                    style={{ background: BG2, border: `1px solid ${LINE}`, borderRadius: 10, padding: '14px 16px', cursor: 'pointer' }}>
                     <div style={{ fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: TEXT2, marginBottom: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.label}</div>
                     <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 26, color: TEXT, lineHeight: 1 }}>{fmtNum(t.value)}</div>
                     <div style={{ fontSize: 11, color: TEXT2, marginTop: 6, display: 'flex', alignItems: 'center', gap: 8 }}>

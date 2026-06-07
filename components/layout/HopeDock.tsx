@@ -75,6 +75,7 @@ export default function HopeDock() {
   const [voiceBaseline, setVoiceBaseline] = useState<string | null>(null)
   const threadRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const sendRef = useRef<((q: string) => void) | null>(null)
 
   useEffect(() => {
     authFetch('/api/me').then(async (res) => {
@@ -101,6 +102,17 @@ export default function HopeDock() {
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [open])
+
+  // Let any tile / drill-down hand Hope a question (lib/hope/ask.ts → askHope()).
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const q = (e as CustomEvent).detail?.query
+      // Call the LATEST send via ref so the `sending` guard isn't stale (no double-fire).
+      if (typeof q === 'string' && q) { setOpen(true); sendRef.current?.(q) }
+    }
+    window.addEventListener('hope:ask', handler)
+    return () => window.removeEventListener('hope:ask', handler)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-grow textarea as content wraps (up to maxHeight)
   useEffect(() => {
@@ -215,6 +227,7 @@ export default function HopeDock() {
 
     setSending(false)
   }
+  sendRef.current = send // keep the ref pointed at the latest closure
 
   async function resolveCard(message: Message, decision: 'confirm' | 'cancel') {
     if (!message.card?.actionId || cardBusy) return

@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { askHope } from '@/lib/hope/ask'
 
 const GOLD = '#5BA3D9'
 const TEXT = '#F0EDE6'
@@ -52,6 +54,7 @@ function Sparkline({ series }: { series: { value: number }[] }) {
 function fmt(n: number) { return n.toLocaleString('en-US') }
 
 export default function ExecutivePage() {
+  const router = useRouter()
   const [tiles, setTiles] = useState<Tile[]>([])
   const [impact, setImpact] = useState<Impact[]>([])
   const [latestPeriod, setLatestPeriod] = useState<string | null>(null)
@@ -80,14 +83,21 @@ export default function ExecutivePage() {
       <div style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: GOLD, marginBottom: 8 }}>Executive</div>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
         <h1 style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 32, color: TEXT, margin: 0 }}>Executive Dashboard</h1>
-        {latestPeriod && <span style={{ color: TEXT2, fontSize: 13 }}>Latest period: <strong style={{ color: TEXT }}>{latestPeriod}</strong></span>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          {latestPeriod && <span style={{ color: TEXT2, fontSize: 13 }}>Latest period: <strong style={{ color: TEXT }}>{latestPeriod}</strong></span>}
+          <button onClick={() => askHope('Build me a custom report from CFAC data. Ask me what to include if you need to.')}
+            style={{ background: 'rgba(91,163,217,0.12)', border: `1px solid ${GOLD}`, color: GOLD, borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            ✦ Ask Hope to build a report
+          </button>
+        </div>
       </div>
 
       {/* Impact row — the three headline metrics, COMPUTED from Metric Mappings */}
       {impact.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 28 }}>
           {impact.map((m) => (
-            <div key={m.key} title={m.definition} style={{ background: 'linear-gradient(180deg, rgba(91,163,217,0.07), rgba(255,255,255,0.02))', border: `1px solid ${GOLD}44`, borderRadius: 12, padding: '18px 20px' }}>
+            <div key={m.key} title={`${m.definition}\n\nClick to ask Hope`} onClick={() => askHope(`Break down "${m.label}" — how it's computed, the trend, and what's behind the change. Use only CFAC data.`)}
+              style={{ background: 'linear-gradient(180deg, rgba(91,163,217,0.07), rgba(255,255,255,0.02))', border: `1px solid ${GOLD}44`, borderRadius: 12, padding: '18px 20px', cursor: 'pointer' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                 <span style={{ color: GOLD, fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>{m.label}</span>
                 {m.isDedup && <span style={{ fontSize: 9, color: GOLD, border: `1px solid ${GOLD}55`, borderRadius: 4, padding: '1px 5px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>unique</span>}
@@ -121,7 +131,9 @@ export default function ExecutivePage() {
         {tiles.map((t) => {
           const up = t.deltaPct !== null && t.deltaPct >= 0
           return (
-            <div key={t.key} style={{ background: BG2, border: `1px solid ${LINE}`, borderRadius: 12, padding: 18 }}>
+            <div key={t.key} onClick={() => router.push(`/metric/${encodeURIComponent(t.key)}`)} title="Click to drill in"
+              style={{ background: BG2, border: `1px solid ${LINE}`, borderRadius: 12, padding: 18, cursor: 'pointer', transition: 'border-color 120ms' }}
+              onMouseEnter={(e) => (e.currentTarget.style.borderColor = GOLD)} onMouseLeave={(e) => (e.currentTarget.style.borderColor = LINE)}>
               <div style={{ color: TEXT2, fontSize: 12, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 10 }}>{t.label}</div>
               <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8 }}>
                 <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 30, color: TEXT, lineHeight: 1 }}>{fmt(t.value)}</div>
