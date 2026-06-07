@@ -6,6 +6,17 @@ import * as Icons from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import HopeVoiceButton from '@/components/HopeVoiceButton'
 
+type ViewTile = {
+  key: string
+  label: string
+  value: number
+  period: string
+  priorValue: number | null
+  priorPeriod: string | null
+  deltaPct: number | null
+  series: { period: string; value: number }[]
+}
+
 type HopeCard = {
   type: string
   actionId?: string | null
@@ -16,7 +27,12 @@ type HopeCard = {
   requiresConfirmation?: boolean
   payload?: Record<string, unknown>
   preview?: unknown
+  // on-the-fly view cards
+  kind?: 'tiles' | 'bars'
+  tiles?: ViewTile[]
 }
+
+const fmtNum = (n: number) => (Number.isInteger(n) ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 1 }))
 
 type Message = {
   id: string
@@ -366,6 +382,9 @@ export default function HopeDock() {
                     <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: TEXT2, marginBottom: 8 }}>
                       {m.card.title || m.card.type}
                     </div>
+                    {m.card.type === 'view' && m.card.tiles && m.card.tiles.length > 0 && (
+                      <ViewCardBody kind={m.card.kind || 'tiles'} tiles={m.card.tiles} />
+                    )}
                     {m.card.summary && <div style={{ marginBottom: 10 }}>{m.card.summary}</div>}
                     {m.card.requiresConfirmation && m.card.actionId && (
                       <div style={{ display: 'flex', gap: 8 }}>
@@ -525,5 +544,48 @@ export default function HopeDock() {
         </span>
       </button>
     </>
+  )
+}
+
+// Renders a grounded on-the-fly view: KPI tiles, or a single metric's trend bars.
+// All values come from the server (DB), never the model.
+function ViewCardBody({ kind, tiles }: { kind: 'tiles' | 'bars'; tiles: ViewTile[] }) {
+  if (kind === 'bars') {
+    const t = tiles[0]
+    const pts = t.series.slice(-12)
+    const max = Math.max(...pts.map((p) => p.value), 1)
+    return (
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ fontSize: 12, color: TEXT, fontWeight: 600, marginBottom: 8 }}>{t.label}</div>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 96 }}>
+          {pts.map((p, i) => (
+            <div key={i} title={`${p.period}: ${fmtNum(p.value)}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 0 }}>
+              <div style={{ fontSize: 8.5, color: TEXT2, whiteSpace: 'nowrap' }}>{fmtNum(p.value)}</div>
+              <div style={{ width: '100%', height: `${Math.max(4, Math.round((p.value / max) * 72))}px`, background: i === pts.length - 1 ? HOPE : 'rgba(26,175,160,0.45)' }} />
+              <div style={{ fontSize: 8, color: TEXT2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{p.period}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: tiles.length > 1 ? '1fr 1fr' : '1fr', gap: 8, marginBottom: 10 }}>
+      {tiles.map((t) => {
+        const up = (t.deltaPct ?? 0) >= 0
+        return (
+          <div key={t.key} style={{ background: BG3, border: `1px solid ${LINE}`, padding: '10px 12px' }}>
+            <div style={{ fontSize: 9.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: TEXT2, marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.label}</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: TEXT, fontFamily: 'var(--font-heading)' }}>{fmtNum(t.value)}</div>
+            <div style={{ fontSize: 10, color: TEXT2, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>{t.period}</span>
+              {t.deltaPct !== null && t.priorPeriod && (
+                <span style={{ color: up ? SUCCESS : '#E0846B', fontWeight: 600 }}>{up ? '▲' : '▼'} {Math.abs(t.deltaPct)}%</span>
+              )}
+            </div>
+          </div>
+        )
+      })}
+    </div>
   )
 }

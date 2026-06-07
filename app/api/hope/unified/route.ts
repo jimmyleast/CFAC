@@ -36,13 +36,14 @@ export async function POST(req: Request) {
       try {
         const result = await runHopePipeline(query, history)
         for (const w of result.answer.split(/(\s+)/)) if (w) send({ token: w })
+        if (result.card) send({ card: result.card })
         if (result.followups.length) send({ followups: result.followups })
 
         void emitAppEvent({
           eventName: 'hope.chat.response', category: 'latency', userId: user.id, route: '/api/hope/unified',
           status: result.verified ? 'verified' : (result.verdict.critic === 'none' ? 'unverified' : 'blocked'),
           durationMs: elapsedMs(startedAt),
-          metadata: { verified: result.verified, critic: result.verdict.critic, score: result.verdict.score, iterations: result.iterations, staleDays: result.staleDays },
+          metadata: { verified: result.verified, critic: result.verdict.critic, score: result.verdict.score, iterations: result.iterations, staleDays: result.staleDays, hasCard: !!result.card },
         })
       } catch (err: any) {
         // Generic message to the user; raw detail only in telemetry.
