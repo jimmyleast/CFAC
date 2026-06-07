@@ -50,6 +50,12 @@ export function getCfacNav(isAdmin: boolean): NavSection[] {
       ],
     },
     {
+      section: 'CASE REVIEW',
+      items: [
+        { label: 'MDT Agendas', href: '/case-review', icon: 'ClipboardCheck', description: 'New / Pending / Criminal case agendas' },
+      ],
+    },
+    {
       section: 'COMPONENTS',
       items: CFAC_COMPONENTS.map((c) => ({
         label: c.label, href: `/c/${c.slug}`, icon: c.icon, description: `${c.label} data & sources`,
