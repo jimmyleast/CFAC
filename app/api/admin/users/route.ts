@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server'
 import { getAdminClient, checkIsAdmin } from '@/lib/admin'
-import { getRequestUser } from '@/lib/auth/requestUser'
+import { getRequestAuth } from '@/lib/auth/requestUser'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
-  const user = await getRequestUser(req)
+  const { user, mfaRequired } = await getRequestAuth(req)
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (mfaRequired) return NextResponse.json({ error: 'mfa_required' }, { status: 403 })
   if (!(await checkIsAdmin(user.id, user.email || ''))) {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
   }
@@ -22,8 +23,9 @@ export async function GET(req: Request) {
 }
 
 export async function PATCH(req: Request) {
-  const user = await getRequestUser(req)
+  const { user, mfaRequired } = await getRequestAuth(req)
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (mfaRequired) return NextResponse.json({ error: 'mfa_required' }, { status: 403 })
   if (!(await checkIsAdmin(user.id, user.email || ''))) {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
   }

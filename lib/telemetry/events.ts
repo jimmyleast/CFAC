@@ -17,8 +17,9 @@ export type AppEventName =
   | 'export.failed'
   | 'admin.invite.sent'
   | 'admin.invite.failed'
+  | 'auth.mfa.admin_reset'
 
-export type AppEventCategory = 'funnel' | 'latency' | 'error' | 'quality' | 'system'
+export type AppEventCategory = 'funnel' | 'latency' | 'error' | 'quality' | 'system' | 'auth'
 
 export type AppEventInput = {
   eventName: AppEventName

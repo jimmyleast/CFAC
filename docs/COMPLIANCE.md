@@ -31,8 +31,8 @@ A signed BAA is required with every vendor that could touch PHI. **Send each ven
 | Encryption at rest | ✅ Supabase (AES-256) | document |
 | Encryption in transit | ✅ TLS everywhere | document |
 | Access control (RLS, least privilege) | ✅ RLS on all tables; anon blocked; service-role server-only | access reviews cadence |
-| Authentication / **MFA (2-factor)** | ⚠ partial | **Enable MFA on Supabase, Railway, GitHub, and require it for staff app logins** |
-| Audit logging | ⚠ partial (`app_events`) | extend to log PHI access; set retention; make tamper-evident |
+| Authentication / **MFA (2-factor)** | ✅ app | TOTP enroll (`/settings/security`); **enforced server-side** (AAL2 gate on all data/admin routes, not just UI); challenge at `/auth/mfa`. Still: enable MFA on Supabase/Railway/GitHub consoles. |
+| Audit logging | ⚠ partial (`app_events`) | extend to log PHI access; set retention; make tamper-evident. MFA admin-resets are logged (`auth.mfa.admin_reset`). |
 | Monitoring / alerting | ⚠ partial | surface verified/unverified/blocked + freshness; alert on anomalies |
 | Change management | ✅ the 6 review gates (`.claude/agents/`) + this compliance gate | run on every change (enforced) |
 | Vendor management | ⚠ | the BAA tracker (§2) |
@@ -52,6 +52,12 @@ A signed BAA is required with every vendor that could touch PHI. **Send each ven
 4. Redaction/de-identification before any LLM call; never log raw PHI in `app_events`.
 5. Access logging of every PHI read/write; retention + alerting.
 6. MFA enforced; key rotation done.
+
+## 5a. MFA enforcement & recovery (runbook)
+- **Enrollment:** staff enroll a TOTP authenticator at `/settings/security`.
+- **Server-side enforcement:** every sensitive route (`/api/hope/unified`, `/api/data/*`, `/api/executive/summary`, `/api/admin/*`) resolves the session via `getRequestAuth`/`requireUserMfa` and returns **403 `mfa_required`** when the user has a verified factor but the session is not AAL2 (cookie sessions use `getAuthenticatorAssuranceLevel`; bearer tokens use the JWT `aal` claim). `/api/me` is intentionally exempt so the chrome can detect AAL1 and redirect to `/auth/mfa` without a login loop.
+- **Recovery (lost device):** there are **no self-service backup codes** in v1. An admin recovers a locked-out user from **People → Reset 2FA**, which calls `POST /api/admin/users/reset-mfa` (admin-only, requires the acting admin's own session to be AAL2). It removes the user's factors so they can sign in at AAL1 and re-enroll. Each reset is logged to `app_events` as `auth.mfa.admin_reset` with the target user id. **Verify the user's identity out-of-band before resetting.**
+- **Follow-up:** add self-service recovery codes before scaling staff count.
 
 ## 6. Open action items (owner: Jimmy)
 - [ ] Obtain & sign BAAs/DPAs for all vendors in §2.

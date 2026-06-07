@@ -1,4 +1,4 @@
-import { getRequestUser } from '@/lib/auth/requestUser'
+import { getRequestAuth } from '@/lib/auth/requestUser'
 import { runHopePipeline } from '@/lib/hope/pipeline'
 import { emitAppEvent, elapsedMs } from '@/lib/telemetry/events'
 import type { ChatMessage } from '@/lib/hope/providers'
@@ -11,8 +11,9 @@ const MAX_CONTENT = 4000
 
 export async function POST(req: Request) {
   const startedAt = Date.now()
-  const user = await getRequestUser(req)
+  const { user, mfaRequired } = await getRequestAuth(req)
   if (!user) return new Response('Unauthorized', { status: 401 })
+  if (mfaRequired) return new Response('mfa_required', { status: 403 })
 
   const body = await req.json().catch(() => ({})) as { query?: string; history?: ChatMessage[] }
   const query = String(body.query || '').trim().slice(0, MAX_CONTENT)

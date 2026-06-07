@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { getAdminClient, checkIsAdmin } from '@/lib/admin'
-import { getRequestUser } from '@/lib/auth/requestUser'
+import { getRequestAuth } from '@/lib/auth/requestUser'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -21,8 +21,9 @@ function toNum(v: any): number | null {
 }
 
 export async function POST(req: Request) {
-  const user = await getRequestUser(req)
+  const { user, mfaRequired } = await getRequestAuth(req)
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (mfaRequired) return NextResponse.json({ error: 'mfa_required' }, { status: 403 })
   // Importing writes via the service-role client (bypasses RLS) — admin only.
   if (!(await checkIsAdmin(user.id, user.email || ''))) {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 })

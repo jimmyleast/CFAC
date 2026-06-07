@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 // ───── tokens ─────
@@ -22,18 +22,17 @@ type ObservabilityPayload = {
     totalEvents: number
     hopeRequests: number
     hopeErrors: number
-    exportsCompleted: number
-    processesCreated: number
     avgLatencyMs: number
     p95LatencyMs: number
     errorRatePct: number
   }
-  funnel: {
-    processCreated: number
-    hopeStarted: number
-    exportCompleted: number
+  hope: {
+    verified: number; unverified: number; blocked: number; criticNone: number; criticError: number
+    verifiedRatePct: number | null; publicRequests: number; rateLimited: number; maxStaleDays: number | null
+    alerts: string[]
   }
-  daily: Array<{ day: string; requests: number; errors: number; exports: number; created: number }>
+  freshness: { staleSources: Array<{ name: string; lastImported: string | null; staleDays: number | null }> }
+  daily: Array<{ day: string; requests: number; errors: number }>
   topErrors: Array<{ message: string; count: number }>
   recent: Array<{
     id: string
@@ -76,11 +75,6 @@ export default function ObservabilityPage() {
 
   useEffect(() => { void load(days) }, [days, load])
 
-  const conversionRate = useMemo(() => {
-    if (!payload?.funnel.processCreated) return 0
-    return Math.round((payload.funnel.exportCompleted / payload.funnel.processCreated) * 100)
-  }, [payload])
-
   if (accessDenied) {
     return (
       <div style={{ padding: 60, color: TEXT2, textAlign: 'center' }}>
@@ -96,7 +90,7 @@ export default function ObservabilityPage() {
           <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 600, fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: GOLD, marginBottom: 8 }}>Tools</div>
           <h1 style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 36, letterSpacing: '0.02em', textTransform: 'uppercase', margin: 0, lineHeight: 1.05 }}>Observability</h1>
           <p style={{ fontSize: 13, color: TEXT2, marginTop: 6 }}>
-            In-app telemetry for Hope reliability, funnel progression, and export outcomes.
+            In-app telemetry for Hope reliability, answer verification, and data freshness.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 4 }}>
@@ -139,11 +133,43 @@ export default function ObservabilityPage() {
         </>
       ) : (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10, marginBottom: 12 }}>
-            <Kpi label="Hope help items" value={payload.summary.hopeRequests} />
-            <Kpi label="Hope error rate" value={`${payload.summary.errorRatePct}%`} accent={payload.summary.errorRatePct > 5 ? CRITICAL : SUCCESS} />
+          {payload.hope.alerts.length > 0 && (
+            <div style={{ marginBottom: 16, border: `1px solid ${CRITICAL}`, background: 'rgba(220,38,38,0.08)', color: '#FCA5A5', padding: '10px 14px', fontSize: 13 }}>
+              {payload.hope.alerts.map((a, i) => (<div key={i}>⚠ {a}</div>))}
+            </div>
+          )}
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, marginBottom: 12 }}>
+            <Kpi label="Hope questions" value={payload.summary.hopeRequests} />
+            <Kpi label="Verified rate" value={payload.hope.verifiedRatePct === null ? '—' : `${payload.hope.verifiedRatePct}%`} accent={payload.hope.verifiedRatePct !== null && payload.hope.verifiedRatePct < 90 ? CRITICAL : SUCCESS} />
+            <Kpi label="Error rate" value={`${payload.summary.errorRatePct}%`} accent={payload.summary.errorRatePct > 5 ? CRITICAL : SUCCESS} />
             <Kpi label="Avg / P95 latency" value={`${payload.summary.avgLatencyMs} / ${payload.summary.p95LatencyMs} ms`} />
-            <Kpi label="Created to export" value={`${conversionRate}%`} />
+            <Kpi label="Public chats" value={payload.hope.publicRequests} />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 10, marginBottom: 12 }}>
+            <Panel title="Answer verification">
+              <div style={{ display: 'grid', gap: 8, fontSize: 13 }}>
+                <FunnelRow label="Verified" value={payload.hope.verified} />
+                <FunnelRow label="Unverified (no critic configured)" value={payload.hope.unverified} />
+                <FunnelRow label="Blocked (failed verification)" value={payload.hope.blocked} />
+                <FunnelRow label="Critic errors" value={payload.hope.criticError} />
+                <FunnelRow label="Rate-limited (public)" value={payload.hope.rateLimited} />
+              </div>
+            </Panel>
+
+            <Panel title="Data freshness (>30d or never imported)">
+              <div style={{ display: 'grid', gap: 6 }}>
+                {payload.freshness.staleSources.length === 0 ? (
+                  <span style={{ color: TEXT3, fontSize: 12 }}>All sources fresh.</span>
+                ) : payload.freshness.staleSources.map((s) => (
+                  <div key={s.name} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontFamily: 'var(--font-mono)' }}>
+                    <span style={{ color: TEXT }}>{s.name}</span>
+                    <span style={{ color: s.staleDays === null ? '#FCA5A5' : TEXT2 }}>{s.staleDays === null ? 'never' : `${s.staleDays}d`}</span>
+                  </div>
+                ))}
+              </div>
+            </Panel>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 0.8fr)', gap: 10, marginBottom: 12 }}>
@@ -152,27 +178,16 @@ export default function ObservabilityPage() {
                 {payload.daily.length === 0 ? (
                   <div style={{ color: TEXT3, fontSize: 13 }}>No events in this window.</div>
                 ) : payload.daily.map((d) => (
-                  <div key={d.day} style={{
-                    display: 'grid', gridTemplateColumns: '110px repeat(4, 1fr)', gap: 10,
-                    fontSize: 12, fontFamily: 'var(--font-mono)', paddingBottom: 4,
-                  }}>
+                  <div key={d.day} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 1fr', gap: 10, fontSize: 12, fontFamily: 'var(--font-mono)', paddingBottom: 4 }}>
                     <span style={{ color: TEXT2 }}>{d.day}</span>
                     <span><span style={{ color: TEXT3 }}>req</span> {d.requests}</span>
                     <span><span style={{ color: TEXT3 }}>err</span> {d.errors}</span>
-                    <span><span style={{ color: TEXT3 }}>exp</span> {d.exports}</span>
-                    <span><span style={{ color: TEXT3 }}>new</span> {d.created}</span>
                   </div>
                 ))}
               </div>
             </Panel>
 
-            <Panel title="Funnel">
-              <div style={{ display: 'grid', gap: 8, fontSize: 13 }}>
-                <FunnelRow label="Process created" value={payload.funnel.processCreated} />
-                <FunnelRow label="Hope started" value={payload.funnel.hopeStarted} />
-                <FunnelRow label="Export completed" value={payload.funnel.exportCompleted} />
-              </div>
-              <div style={{ fontFamily: 'var(--font-heading)', fontSize: 10, color: TEXT3, marginTop: 18, marginBottom: 8, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Top errors</div>
+            <Panel title="Top errors">
               <div style={{ display: 'grid', gap: 6 }}>
                 {payload.topErrors.length === 0 ? (
                   <span style={{ color: TEXT3, fontSize: 12 }}>No errors recorded.</span>

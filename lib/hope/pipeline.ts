@@ -2,6 +2,7 @@ import { HOPE_SYSTEM_PROMPT } from '@/lib/anthropic/hopePrompt'
 import { generateAnthropic, type ChatMessage } from '@/lib/hope/providers'
 import { buildDataCatalog } from '@/lib/hope/context'
 import { critique, type Verdict } from '@/lib/hope/critique'
+import { redactPHI } from '@/lib/compliance/phi'
 
 const MAX_ITERS = 2
 
@@ -51,11 +52,15 @@ export function splitFollowups(raw: string): { answer: string; followups: string
 export async function runHopePipeline(query: string, history: ChatMessage[] = [], componentSlug?: string): Promise<HopeResult> {
   const catalog = await buildDataCatalog(componentSlug)
   const system = genSystem(catalog.text)
-  const baseMessages: ChatMessage[] = [...history.slice(-8), { role: 'user', content: query }]
+  // Strip structured PII before anything reaches a model subprocessor — including
+  // the BAA'd generator (defense-in-depth: aggregate questions never need PII).
+  const safeQuery = redactPHI(query)
+  const safeHistory: ChatMessage[] = history.slice(-8).map((m) => ({ role: m.role, content: redactPHI(m.content) }))
+  const baseMessages: ChatMessage[] = [...safeHistory, { role: 'user', content: safeQuery }]
 
   let raw = await generateAnthropic(system, baseMessages)
   let { answer, followups } = splitFollowups(raw)
-  let verdict = await critique(query, catalog.text, answer)
+  let verdict = await critique(safeQuery, catalog.text, answer)
   let iterations = 1
 
   // Only repair when the critic actually returned a verdict (gemini/openai) and it failed.
@@ -67,7 +72,7 @@ export async function runHopePipeline(query: string, history: ChatMessage[] = []
     ]
     raw = await generateAnthropic(system, repairMessages)
     ;({ answer, followups } = splitFollowups(raw))
-    verdict = await critique(query, catalog.text, answer)
+    verdict = await critique(safeQuery, catalog.text, answer)
     iterations++
   }
 

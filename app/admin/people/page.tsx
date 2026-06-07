@@ -55,6 +55,17 @@ export default function PeoplePage() {
     } finally { setBusyId(null) }
   }
 
+  async function resetMfa(p: Person) {
+    if (!confirm(`Reset two-factor authentication for ${p.display_name || p.email}?\n\nThis removes their authenticator so they can sign in and re-enroll. Use only for a locked-out user whose identity you have verified.`)) return
+    setBusyId(p.id)
+    try {
+      const res = await authFetch('/api/admin/users/reset-mfa', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id }) })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) alert(d.error || `Reset failed (${res.status})`)
+      else alert(`2FA reset — ${d.factorsRemoved ?? 0} factor(s) removed. The user must re-enroll on next sign-in.`)
+    } finally { setBusyId(null) }
+  }
+
   const filtered = people.filter(p => {
     if (!q.trim()) return true
     const s = q.toLowerCase()
@@ -99,6 +110,10 @@ export default function PeoplePage() {
             <button disabled={busyId === p.id} onClick={() => patch(p.id, { active: !p.active })}
               style={{ background: 'none', border: `1px solid ${LINE}`, color: p.active ? WARN : OK, borderRadius: 6, padding: '6px 10px', fontSize: 12, cursor: 'pointer' }}>
               {p.active ? 'Deactivate' : 'Reactivate'}
+            </button>
+            <button disabled={busyId === p.id} onClick={() => resetMfa(p)} title="Remove this user's 2FA so they can re-enroll (account recovery)"
+              style={{ background: 'none', border: `1px solid ${LINE}`, color: TEXT2, borderRadius: 6, padding: '6px 10px', fontSize: 12, cursor: 'pointer' }}>
+              Reset 2FA
             </button>
           </div>
         ))}

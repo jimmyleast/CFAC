@@ -1,4 +1,5 @@
 import { generateGemini, generateOpenAI, hasGemini, hasOpenAI } from '@/lib/hope/providers'
+import { redactPHI } from '@/lib/compliance/phi'
 
 export type CriticSource = 'gemini' | 'openai' | 'none' | 'error'
 
@@ -55,7 +56,8 @@ export function parseVerdict(raw: string): { pass: boolean; score: number; issue
  * silently treated as a pass).
  */
 export async function critique(query: string, catalog: string, answer: string): Promise<Verdict> {
-  const prompt = buildCriticPrompt(query, catalog, answer)
+  // Redact any structured PII before it reaches a non-BAA critic (OpenAI/Gemini).
+  const prompt = buildCriticPrompt(redactPHI(query), redactPHI(catalog), redactPHI(answer))
   const configured = hasGemini() || hasOpenAI()
   let attempted = false
 

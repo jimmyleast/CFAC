@@ -116,6 +116,9 @@ export default function SettingsPage() {
         <p style={{ fontSize: 13, color: '#8A8680', maxWidth: 480, lineHeight: 1.5 }}>
           Your profile, preferences, and account details.
         </p>
+        <button onClick={() => router.push('/settings/security')} style={{ marginTop: 14, background: 'rgba(201,168,76,0.12)', border: '1px solid #C9A84C', color: '#C9A84C', borderRadius: 8, padding: '9px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+          🔒 Security &amp; Two-Factor Authentication
+        </button>
       </div>
 
       <div className="surface-card" style={{ padding: '24px' }}>

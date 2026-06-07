@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import * as Icons from 'lucide-react'
 import NavDrawer from './NavDrawer'
 import { useTeamNav } from '@/hooks/useTeamNav'
+import { createClient } from '@/lib/supabase/client'
 
 type UserRole = 'admin' | 'staff' | null
 
@@ -16,6 +17,15 @@ export default function AppChrome({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!pathname || pathname.startsWith('/auth') || pathname === '/onboarding') return
+    // Enforce 2FA: if the user has a verified factor but this session is not
+    // elevated to AAL2, send them to the challenge.
+    void createClient().auth.mfa.getAuthenticatorAssuranceLevel()
+      .then(({ data }) => {
+        if (data && data.nextLevel === 'aal2' && data.currentLevel !== 'aal2') {
+          router.replace(`/auth/mfa?next=${encodeURIComponent(pathname)}`)
+        }
+      })
+      .catch(() => {})
     void Promise.all([
       fetch('/api/me').then(async (res) => {
         if (res.status === 401) {

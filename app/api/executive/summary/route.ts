@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAdminClient } from '@/lib/admin'
-import { getRequestUser } from '@/lib/auth/requestUser'
+import { requireUserMfa } from '@/lib/auth/aal'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,8 +21,8 @@ const TILE_ORDER: { key: string; label: string }[] = [
 ]
 
 export async function GET(req: Request) {
-  const user = await getRequestUser(req)
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const auth = await requireUserMfa(req)
+  if ('response' in auth) return auth.response
 
   const admin = getAdminClient()
   const { data, error } = await admin
