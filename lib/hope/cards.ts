@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { dominantSeriesByKey, seriesToTile, type MetricTile, type MetricRow } from '@/lib/metrics/tiles'
 
 // On-the-fly dashboard views. Hope (the LLM) only chooses WHICH metrics and the
 // chart kind; the server fills every value from the metrics table, so a rendered
@@ -14,18 +15,8 @@ export type HopeViewSpec = {
   metricKeys: string[]
 }
 
-export type ViewPoint = { period: string; value: number }
-
-export type ViewTile = {
-  key: string
-  label: string
-  value: number
-  period: string
-  priorValue: number | null
-  priorPeriod: string | null
-  deltaPct: number | null
-  series: ViewPoint[]
-}
+// Tiles share the metrics tile shape (latest value + change vs prior + series).
+export type ViewTile = MetricTile
 
 export type HopeViewCard = {
   type: 'view'
@@ -105,47 +96,12 @@ export async function resolveViewCard(
     .order('period_start', { ascending: true })
     .limit(VIEW_ROW_LIMIT)
 
-  // Group by composite identity (key|source|dimension) so a metric broken down by
-  // agency/source is never merged into one misleading series. For each metric_key
-  // we then keep ONLY the dominant series (most data points) — never a concatenation.
-  const groups: Record<string, { key: string; label: string; series: ViewPoint[] }> = {}
-  for (const m of data || []) {
-    const v = Number(m.value)
-    if (!Number.isFinite(v)) continue
-    let dim = ''
-    try { dim = m.dimension && Object.keys(m.dimension).length ? JSON.stringify(m.dimension) : '' } catch { dim = '' }
-    const id = `${m.metric_key}|${m.source_id || ''}|${dim}`
-    ;(groups[id] ||= { key: m.metric_key, label: m.label || m.metric_key, series: [] }).series.push({
-      period: m.period_label || '',
-      value: v,
-    })
-  }
-
-  const byKey: Record<string, { label: string; series: ViewPoint[] }> = {}
-  for (const g of Object.values(groups)) {
-    const cur = byKey[g.key]
-    if (!cur || g.series.length > cur.series.length) byKey[g.key] = { label: g.label, series: g.series }
-  }
-
-  // Preserve the order Hope requested; drop keys with no data.
+  // Dominant series per key (never merges breakdowns); preserve Hope's requested
+  // order, drop keys with no data. Values come straight from the DB rows.
+  const byKey = dominantSeriesByKey((data || []) as MetricRow[])
   const tiles: ViewTile[] = keys
     .filter((k) => byKey[k]?.series.length)
-    .map((k) => {
-      const g = byKey[k]
-      const latest = g.series[g.series.length - 1]
-      const prior = g.series.length > 1 ? g.series[g.series.length - 2] : null
-      const deltaPct = prior && prior.value ? Math.round(((latest.value - prior.value) / prior.value) * 100) : null
-      return {
-        key: k,
-        label: g.label,
-        value: latest.value,
-        period: latest.period,
-        priorValue: prior?.value ?? null,
-        priorPeriod: prior?.period ?? null,
-        deltaPct,
-        series: g.series,
-      }
-    })
+    .map((k) => seriesToTile(byKey[k]))
 
   if (!tiles.length) return null
   // A "bars" view charts a single metric's trend — keep just the first tile.

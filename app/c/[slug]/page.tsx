@@ -20,6 +20,14 @@ type Source = {
   lastImportedAt: string | null; metricCount: number; issueCount: number
 }
 
+type Tile = {
+  key: string; label: string; value: number; period: string
+  priorValue: number | null; priorPeriod: string | null; deltaPct: number | null
+}
+
+const SUCCESS = '#7DD3C7'
+const fmtNum = (n: number) => (Number.isInteger(n) ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 1 }))
+
 const KIND_ICON: Record<string, keyof typeof Icons> = {
   spreadsheet: 'Table', form: 'ClipboardList', system: 'Plug', manual: 'PencilLine',
 }
@@ -46,6 +54,7 @@ export default function ComponentPage() {
   const Icon = (Icons[(meta?.icon as keyof typeof Icons) || 'Folder'] || Icons.Folder) as React.ComponentType<{ size?: number; strokeWidth?: number; color?: string }>
 
   const [sources, setSources] = useState<Source[]>([])
+  const [tiles, setTiles] = useState<Tile[]>([])
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
 
@@ -55,6 +64,11 @@ export default function ComponentPage() {
       .then(async (r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
       .then((d) => { if (active) { setSources(d.sources || []); setLoading(false) } })
       .catch((e) => { if (active) { setErr(String(e.message || e)); setLoading(false) } })
+    // KPI tiles load independently — a metrics hiccup must not blank the sources list.
+    authFetch(`/api/components/${encodeURIComponent(slug)}/summary`)
+      .then(async (r) => (r.ok ? r.json() : { tiles: [] }))
+      .then((d) => { if (active) setTiles(d.tiles || []) })
+      .catch(() => { if (active) setTiles([]) })
     return () => { active = false }
   }, [slug])
 
@@ -73,6 +87,36 @@ export default function ComponentPage() {
 
       {loading && <div style={{ color: TEXT2 }}>Loading…</div>}
       {err && <div style={{ color: WARN }}>{err}</div>}
+
+      {!loading && sources.length > 0 && (
+        <>
+          <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: TEXT2, margin: '4px 0 12px' }}>Key Metrics</div>
+          {tiles.length > 0 ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, marginBottom: 28 }}>
+              {tiles.map((t) => {
+                const up = (t.deltaPct ?? 0) >= 0
+                return (
+                  <div key={t.key} style={{ background: BG2, border: `1px solid ${LINE}`, borderRadius: 10, padding: '14px 16px' }}>
+                    <div style={{ fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: TEXT2, marginBottom: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.label}</div>
+                    <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 26, color: TEXT, lineHeight: 1 }}>{fmtNum(t.value)}</div>
+                    <div style={{ fontSize: 11, color: TEXT2, marginTop: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span>{t.period}</span>
+                      {t.deltaPct !== null && t.priorPeriod && (
+                        <span style={{ color: up ? SUCCESS : WARN, fontWeight: 600 }}>{up ? '▲' : '▼'} {Math.abs(t.deltaPct)}%</span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div style={{ color: TEXT4, fontSize: 13, fontStyle: 'italic', marginBottom: 28 }}>
+              No metrics imported yet — <button onClick={() => router.push('/admin/data/import')} style={{ background: 'none', border: 'none', color: GOLD, cursor: 'pointer', textDecoration: 'underline', padding: 0, fontSize: 13 }}>import data</button> to populate this dashboard.
+            </div>
+          )}
+          <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: TEXT2, margin: '4px 0 12px' }}>Data Sources</div>
+        </>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
         {sources.map((s) => {
