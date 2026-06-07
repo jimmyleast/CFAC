@@ -32,6 +32,7 @@ type ObservabilityPayload = {
     viewsRequested: number; viewsRendered: number; viewErrors: number; viewResolveFailRatePct: number | null
     alerts: string[]
   }
+  connectors: { syncs: number; failures: number; emptyPulls: number; failingProviders: string[]; alerts: string[] }
   freshness: { staleSources: Array<{ name: string; lastImported: string | null; staleDays: number | null }> }
   daily: Array<{ day: string; requests: number; errors: number }>
   topErrors: Array<{ message: string; count: number }>
@@ -134,9 +135,9 @@ export default function ObservabilityPage() {
         </>
       ) : (
         <>
-          {payload.hope.alerts.length > 0 && (
+          {(payload.hope.alerts.length + (payload.connectors?.alerts.length || 0)) > 0 && (
             <div style={{ marginBottom: 16, border: `1px solid ${CRITICAL}`, background: 'rgba(220,38,38,0.08)', color: '#FCA5A5', padding: '10px 14px', fontSize: 13 }}>
-              {payload.hope.alerts.map((a, i) => (<div key={i}>⚠ {a}</div>))}
+              {[...payload.hope.alerts, ...(payload.connectors?.alerts || [])].map((a, i) => (<div key={i}>⚠ {a}</div>))}
             </div>
           )}
 
@@ -174,6 +175,22 @@ export default function ObservabilityPage() {
                     <span style={{ color: s.staleDays === null ? '#FCA5A5' : TEXT2 }}>{s.staleDays === null ? 'never' : `${s.staleDays}d`}</span>
                   </div>
                 ))}
+              </div>
+            </Panel>
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <Panel title="Connector sync health">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, fontSize: 13 }}>
+                <FunnelRow label="Syncs" value={payload.connectors.syncs} />
+                <FunnelRow label="Failures" value={payload.connectors.failures} />
+                <FunnelRow label="Empty pulls" value={payload.connectors.emptyPulls} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                  <span style={{ color: TEXT2 }}>Failing</span>
+                  <span style={{ color: payload.connectors.failingProviders.length ? '#FCA5A5' : TEXT3, fontWeight: 600, fontFamily: 'var(--font-mono)' }}>
+                    {payload.connectors.failingProviders.length ? payload.connectors.failingProviders.join(', ') : 'none'}
+                  </span>
+                </div>
               </div>
             </Panel>
           </div>

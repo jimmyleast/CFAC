@@ -85,4 +85,19 @@ describe('recentActuals', () => {
     expect(recentActuals([], 'k')).toEqual([])
     expect(recentActuals([{ metric_key: 'other', value: 1, period_label: 'W1', period_start: '2026-01-01', source_id: 's1', dimension: {} }], 'k')).toEqual([])
   })
+
+  // The scorecard route now fetches rows DESC by period_start (so a row cap drops the
+  // OLDEST, not the newest). recentActuals must be input-order-independent: it re-sorts
+  // ascending internally and returns the most-recent N. This pins that contract so the
+  // route's DESC change can't silently produce wrong/stale actuals.
+  it('is input-order-independent — DESC-by-period_start input yields the newest N ascending', () => {
+    const descRows = [
+      { metric_key: 'cash', value: 90, period_label: 'W3', period_start: '2026-01-15', source_id: 's1', dimension: {} },
+      { metric_key: 'cash', value: 120, period_label: 'W2', period_start: '2026-01-08', source_id: 's1', dimension: {} },
+      { metric_key: 'cash', value: 100, period_label: 'W1', period_start: '2026-01-01', source_id: 's1', dimension: {} },
+    ]
+    expect(recentActuals(descRows, 'cash', 2)).toEqual([{ period: 'W2', value: 120 }, { period: 'W3', value: 90 }])
+    // identical to the ascending-input result above → order truly doesn't matter
+    expect(recentActuals(descRows, 'cash')).toEqual(recentActuals(rows, 'cash'))
+  })
 })
