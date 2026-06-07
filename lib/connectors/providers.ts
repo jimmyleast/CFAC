@@ -77,6 +77,39 @@ export const PROVIDERS: Record<string, ProviderDef> = {
     description: 'Online & text donations, events.',
     scopes: [],
   },
+  asana: {
+    id: 'asana',
+    name: 'Asana',
+    authKind: 'oauth2',
+    phiAllowed: false, // project mgmt, no BAA → non-PHI
+    baa: 'no',
+    description: 'Project management — projects & tasks (non-PHI).',
+    scopes: ['default'],
+    authUrl: 'https://app.asana.com/-/oauth_authorize',
+    tokenUrl: 'https://app.asana.com/-/oauth_token',
+  },
+  docusign: {
+    id: 'docusign',
+    name: 'DocuSign',
+    authKind: 'oauth2',
+    phiAllowed: true,   // mental-health intake forms → PHI
+    baa: 'yes',
+    phiGated: true,     // blocked until the §5 HIPAA infra
+    description: 'E-signature / intake forms (PHI — gated).',
+    scopes: ['signature'],
+    authUrl: 'https://account.docusign.com/oauth/auth',
+    tokenUrl: 'https://account.docusign.com/oauth/token',
+  },
+  qualtrics: {
+    id: 'qualtrics',
+    name: 'Qualtrics (OMS)',
+    authKind: 'apikey',
+    phiAllowed: true,   // outcome/feedback data tied to clients → PHI
+    baa: 'yes',
+    phiGated: true,     // blocked until the §5 HIPAA infra
+    description: 'Outcome measurement / service feedback (PHI — gated).',
+    scopes: [],
+  },
 }
 
 export function getProvider(id: string): ProviderDef | null {

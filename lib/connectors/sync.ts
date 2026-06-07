@@ -17,16 +17,17 @@ export type PulledMetric = {
   period_label?: string
   period_start?: string
 }
+export type PullCtx = { creds: Creds; nowMs: number; account?: string | null }
 export type Connector = {
   id: string
   /** Call the provider API with creds and return normalized metrics. Throw on failure. */
-  pull(ctx: { creds: Creds; nowMs: number }): Promise<PulledMetric[]>
+  pull(ctx: PullCtx): Promise<PulledMetric[]>
 }
 
 export type SyncResult = { ok: boolean; rows?: number; error?: string }
 
 type ConnRow = {
-  provider: string; status: string; auth_kind: string
+  provider: string; status: string; auth_kind: string; external_label: string | null
   api_key_enc: string | null; access_token_enc: string | null; refresh_token_enc: string | null
   token_expires_at: string | null
 }
@@ -108,7 +109,7 @@ export async function runSync(
 
   try {
     const creds = await resolveCreds(admin, conn as ConnRow, provider, nowMs)
-    const pulled = await connector.pull({ creds, nowMs })
+    const pulled = await connector.pull({ creds, nowMs, account: (conn as ConnRow).external_label })
 
     // One data_source per connection; replace its metrics so the figures are current.
     const slug = `conn-${providerId}`

@@ -135,3 +135,54 @@ describe('Bloomerang connector', () => {
     await expect(CONNECTORS.bloomerang.pull({ creds: { apiKey: 'bad' }, nowMs: Date.now() })).rejects.toThrow(/rejected the API key/)
   })
 })
+
+describe('additional provider connectors', () => {
+  const realFetch = globalThis.fetch
+  afterEach(() => { globalThis.fetch = realFetch })
+  const now = new Date('2026-01-01').getTime()
+  // Respond based on URL substring.
+  const fetchBy = (map: Record<string, unknown>) => vi.fn(async (url: string) => {
+    const key = Object.keys(map).find((k) => String(url).includes(k))
+    return { ok: true, status: 200, json: async () => (key ? map[key] : {}) }
+  }) as never
+
+  it('qgiv maps a donations total', async () => {
+    globalThis.fetch = fetchBy({ 'qgiv.com': { total: 500 } })
+    const out = await CONNECTORS.qgiv.pull({ creds: { apiKey: 'k' }, nowMs: now })
+    expect(out[0]).toMatchObject({ metric_key: 'qgiv_donations', value: 500 })
+  })
+
+  it('quickbooks requires a realm id, then maps invoice count', async () => {
+    await expect(CONNECTORS.quickbooks.pull({ creds: { accessToken: 't' }, account: null, nowMs: now })).rejects.toThrow(/realm/)
+    globalThis.fetch = fetchBy({ 'quickbooks.api.intuit.com': { QueryResponse: { totalCount: 42 } } })
+    const out = await CONNECTORS.quickbooks.pull({ creds: { accessToken: 't' }, account: 'realm1', nowMs: now })
+    expect(out[0]).toMatchObject({ metric_key: 'quickbooks_invoices', value: 42 })
+  })
+
+  it('asana maps workspaces + projects', async () => {
+    globalThis.fetch = fetchBy({ 'users/me': { data: { workspaces: [{ gid: 'w1' }] } }, 'projects?workspace': { data: [{}, {}] } })
+    const out = await CONNECTORS.asana.pull({ creds: { accessToken: 't' }, nowMs: now })
+    expect(out.find((m) => m.metric_key === 'asana_workspaces')?.value).toBe(1)
+    expect(out.find((m) => m.metric_key === 'asana_projects')?.value).toBe(2)
+  })
+
+  it('docusign resolves account then maps envelope total', async () => {
+    globalThis.fetch = fetchBy({ 'oauth/userinfo': { accounts: [{ base_uri: 'https://na.docusign.net', account_id: 'acc1' }] }, 'envelopes': { totalSetSize: 12 } })
+    const out = await CONNECTORS.docusign.pull({ creds: { accessToken: 't' }, nowMs: now })
+    expect(out[0]).toMatchObject({ metric_key: 'docusign_envelopes', value: 12 })
+  })
+
+  it('qualtrics requires a datacenter, then maps survey count', async () => {
+    await expect(CONNECTORS.qualtrics.pull({ creds: { apiKey: 'k' }, account: null, nowMs: now })).rejects.toThrow(/datacenter/)
+    globalThis.fetch = fetchBy({ 'qualtrics.com': { result: { elements: [{}, {}, {}] } } })
+    const out = await CONNECTORS.qualtrics.pull({ creds: { apiKey: 'k' }, account: 'iad1', nowMs: now })
+    expect(out[0]).toMatchObject({ metric_key: 'qualtrics_surveys', value: 3 })
+  })
+
+  it('qualtrics rejects a malicious datacenter label (SSRF guard) without fetching', async () => {
+    const spy = vi.fn()
+    globalThis.fetch = spy as never
+    await expect(CONNECTORS.qualtrics.pull({ creds: { apiKey: 'k' }, account: 'evil.com/x', nowMs: now })).rejects.toThrow(/invalid Qualtrics datacenter/)
+    expect(spy).not.toHaveBeenCalled()
+  })
+})

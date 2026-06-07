@@ -100,6 +100,17 @@ function Inner() {
       try { await navigator.clipboard.writeText(d.link) } catch { /* clipboard may be blocked */ }
     } finally { setBusy(null) }
   }
+  const [syncingAll, setSyncingAll] = useState(false)
+  async function syncAll() {
+    setSyncingAll(true)
+    try {
+      const res = await authFetch('/api/connections/sync-all', { method: 'POST' })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) alert(d.error || `Sync failed (${res.status})`)
+      else alert(`Synced ${d.synced}/${d.total} connected system(s).`)
+      await load()
+    } finally { setSyncingAll(false) }
+  }
   async function syncNow(id: string) {
     setBusy(id)
     try {
@@ -126,9 +137,14 @@ function Inner() {
     <div style={{ maxWidth: 860, margin: '0 auto', padding: '40px 24px' }}>
       <div style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: GOLD, marginBottom: 8 }}>Admin</div>
       <h1 style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 30, color: TEXT, margin: '0 0 6px' }}>Connections</h1>
-      <p style={{ color: TEXT2, fontSize: 13, lineHeight: 1.6, margin: '0 0 24px', maxWidth: 640 }}>
+      <p style={{ color: TEXT2, fontSize: 13, lineHeight: 1.6, margin: '0 0 16px', maxWidth: 640 }}>
         Link the systems CFAC uses so the platform can pull data automatically. Credentials are encrypted at rest and never leave the server. PHI-bearing systems stay gated until the compliance prerequisites are met.
       </p>
+      {isAdmin && providers.some((p) => p.status === 'connected') && (
+        <button disabled={syncingAll} onClick={syncAll} style={{ background: GOLD, color: '#0D0D0F', border: 'none', borderRadius: 8, padding: '9px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', marginBottom: 20 }}>
+          {syncingAll ? 'Syncing all…' : 'Sync all connected systems now'}
+        </button>
+      )}
 
       {connectedFlag && <Banner color={OK}>Connected {connectedFlag}.</Banner>}
       {errorFlag && <Banner color={ERR}>Connection failed: {errorFlag.replace(/_/g, ' ')}.</Banner>}

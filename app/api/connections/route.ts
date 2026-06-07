@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getAdminClient } from '@/lib/admin'
 import { requireUserMfa, requireAdmin } from '@/lib/auth/aal'
 import { emitAppEvent } from '@/lib/telemetry/events'
-import { PROVIDERS, getProvider, isConfigured, blockedReason } from '@/lib/connectors/providers'
+import { PROVIDERS, getProvider, isConfigured, blockedReason, isPhiGateReady } from '@/lib/connectors/providers'
 import { encryptSecret, isEncryptionConfigured } from '@/lib/connectors/crypto'
 
 export const dynamic = 'force-dynamic'
@@ -44,6 +44,9 @@ export async function POST(req: Request) {
   const provider = getProvider(String(body.provider || ''))
   if (!provider) return NextResponse.json({ error: 'unknown provider' }, { status: 400 })
   if (provider.authKind !== 'apikey') return NextResponse.json({ error: 'this provider connects via OAuth, not an API key' }, { status: 400 })
+  // PHI-gated providers (e.g. Qualtrics) must NOT be connectable until the HIPAA
+  // infra is in place — enforce here, not just in the UI.
+  if (provider.phiGated && !isPhiGateReady()) return NextResponse.json({ error: 'This system handles PHI and is blocked until the HIPAA infrastructure is in place.' }, { status: 403 })
   const apiKey = String(body.apiKey || '').trim()
   if (!apiKey) return NextResponse.json({ error: 'apiKey required' }, { status: 400 })
 

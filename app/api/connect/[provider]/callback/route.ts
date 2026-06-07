@@ -68,8 +68,12 @@ export async function GET(req: Request, { params }: { params: { provider: string
   if (!tokens.access_token) return back('error=no_access_token')
 
   const expiresAt = tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000).toISOString() : null
+  // Some providers return an account id on the callback (e.g. QuickBooks realmId) —
+  // the connector needs it. Store it as the account label.
+  const account = url.searchParams.get('realmId') || url.searchParams.get('account') || null
   const { error } = await admin.from('connections').upsert({
     provider: provider.id, status: 'connected', auth_kind: 'oauth2',
+    external_label: account,
     scopes: tokens.scope || provider.scopes.join(' '),
     access_token_enc: encryptSecret(tokens.access_token),
     refresh_token_enc: tokens.refresh_token ? encryptSecret(tokens.refresh_token) : null,
