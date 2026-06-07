@@ -53,21 +53,37 @@ describe('POST /api/agencies', () => {
   })
 })
 
-function patchAdmin({ updated, captured }: { updated: unknown; captured?: (p: Record<string, unknown>) => void }) {
-  return { from: () => ({ update: (p: Record<string, unknown>) => { captured?.(p); return { eq: () => ({ select: () => ({ maybeSingle: async () => ({ data: updated, error: null }) }) }) } } }) }
+function patchAdmin({ updated, captured, error }: { updated: unknown; captured?: (p: Record<string, unknown>) => void; error?: unknown }) {
+  return { from: () => ({ update: (p: Record<string, unknown>) => { captured?.(p); return { eq: () => ({ select: () => ({ maybeSingle: async () => ({ data: updated, error: error || null }) }) }) } } }) }
 }
 const preq = (body: unknown) => new Request('http://t/api/agencies', { method: 'PATCH', body: JSON.stringify(body) })
 
 describe('PATCH /api/agencies', () => {
+  it('403s a non-admin', async () => {
+    const { NextResponse } = await import('next/server')
+    mGate.mockResolvedValue({ response: NextResponse.json({ error: 'no' }, { status: 403 }) })
+    expect((await PATCH(preq({ id: 'a1', active: false }))).status).toBe(403)
+  })
   it('400s a missing id', async () => {
     expect((await PATCH(preq({ active: false }))).status).toBe(400)
   })
   it('400s an empty patch (no allowlisted fields)', async () => {
     expect((await PATCH(preq({ id: 'x', name: 'hacked' }))).status).toBe(400) // name not writable
   })
+  it('400s when name is not allowlisted and type is rejected by the enum', async () => {
+    let updateCalled = false
+    mAdmin.mockReturnValue(patchAdmin({ updated: null, captured: () => { updateCalled = true } }))
+    const res = await PATCH(preq({ id: 'x', name: 'x', type: 'bogus' }))
+    expect(res.status).toBe(400) // name dropped, bogus type rejected -> nothing to update
+    expect(updateCalled).toBe(false) // allowlist short-circuits before any DB write
+  })
   it('404s an unknown id', async () => {
     mAdmin.mockReturnValue(patchAdmin({ updated: null }))
     expect((await PATCH(preq({ id: 'ghost', active: false }))).status).toBe(404)
+  })
+  it('500s on a db error', async () => {
+    mAdmin.mockReturnValue(patchAdmin({ updated: null, error: { message: 'boom' } }))
+    expect((await PATCH(preq({ id: 'a1', active: false }))).status).toBe(500)
   })
   it('updates only allowlisted fields (active/type)', async () => {
     let captured: Record<string, unknown> = {}
@@ -75,5 +91,12 @@ describe('PATCH /api/agencies', () => {
     const res = await PATCH(preq({ id: 'a1', active: false, type: 'dhs', name: 'hacked' }))
     expect(res.status).toBe(200)
     expect(captured).toEqual({ active: false, type: 'dhs' }) // name dropped
+  })
+  it('patches active in isolation (only active reaches the update)', async () => {
+    let captured: Record<string, unknown> = {}
+    mAdmin.mockReturnValue(patchAdmin({ updated: { id: 'a1' }, captured: (p) => { captured = p } }))
+    const res = await PATCH(preq({ id: 'a1', active: false }))
+    expect(res.status).toBe(200)
+    expect(captured).toEqual({ active: false }) // nothing smuggled in alongside active
   })
 })
