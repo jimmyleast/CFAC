@@ -30,6 +30,7 @@ function emptyPayload(days: number, since: string, status: 'ok' | 'degraded' = '
       errorRatePct: 0,
     },
     hope: { verified: 0, unverified: 0, blocked: 0, criticNone: 0, criticError: 0, verifiedRatePct: null, publicRequests: 0, rateLimited: 0, maxStaleDays: null, alerts: [] },
+    connectors: { syncs: 0, failures: 0, emptyPulls: 0, failingProviders: [], alerts: [] },
     freshness: { staleSources: [] },
     daily: [],
     topErrors: [],
@@ -153,6 +154,34 @@ export async function GET(request: Request) {
     .filter((v): v is number => v !== null)
   const maxStaleDays = reportedStale.length ? Math.max(...reportedStale) : null
 
+  // --- Connector sync health (the dashboard was previously blind to this) ---
+  // connection.synced events are emitted by the per-provider sync route and the
+  // sync-all route (one per provider), each carrying metadata.provider + a granular
+  // status. Without this section a connector that fails every sync produces only
+  // error events that never raise errorRatePct, never hit topErrors, and never alert
+  // — on-call sees a green board while a data source silently stops updating.
+  const syncEvents = events.filter((e) => e.event_name === 'connection.synced')
+  const syncFailures = syncEvents.filter((e) => e.status === 'error' || e.status === 'partial').length
+  const emptyPulls = syncEvents.filter((e) => e.status === 'ok_empty').length
+  // Latest outcome per provider (events are ordered newest-first, so first seen wins).
+  const latestByProvider = new Map<string, string>()
+  for (const e of syncEvents) {
+    const p = typeof e.metadata?.provider === 'string' ? (e.metadata.provider as string) : null
+    if (p && !latestByProvider.has(p)) latestByProvider.set(p, e.status || '')
+  }
+  const failingProviders = [...latestByProvider.entries()].filter(([, s]) => s === 'error').map(([p]) => p)
+  const emptyProviders = [...latestByProvider.entries()].filter(([, s]) => s === 'ok_empty').map(([p]) => p)
+  const connectors = {
+    syncs: syncEvents.length,
+    failures: syncFailures,
+    emptyPulls,
+    failingProviders,
+    alerts: [
+      ...(failingProviders.length ? [`Connector sync failing — ${failingProviders.join(', ')} errored on the most recent sync`] : []),
+      ...(emptyProviders.length ? [`Connector returning no data — ${emptyProviders.join(', ')} last synced 0 rows (check the source/credentials)`] : []),
+    ],
+  }
+
   // --- Data freshness (which sources have gone quiet) ---
   let staleSources: { name: string; lastImported: string | null; staleDays: number | null }[] = []
   try {
@@ -191,6 +220,7 @@ export async function GET(request: Request) {
         ...(viewResolveFailRatePct !== null && viewResolveFailRatePct > 50 && viewsRequested >= 4 ? [`${viewResolveFailRatePct}% of requested views resolved no data`] : []),
       ],
     },
+    connectors,
     freshness: { staleSources },
     daily,
     topErrors,

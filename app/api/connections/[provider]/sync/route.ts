@@ -21,10 +21,13 @@ export async function POST(_req: Request, { params }: { params: { provider: stri
   // A lock-skip is a benign no-op (a concurrent run is already syncing), not a
   // failure — log it as system/skipped (neutral) so red stays reserved for real
   // sync errors, and answer 409 Conflict rather than a misleading 400.
+  // rows:0 on a successful pull is `ok_empty` — distinct from `ok` so a connector
+  // that authenticates but silently returns nothing is watchable on the dashboard
+  // instead of looking identical to a healthy sync.
   void emitAppEvent({
     eventName: 'connection.synced', category: result.ok || result.skipped ? 'system' : 'error',
     userId: gate.user.id, route: `/api/connections/${params.provider}/sync`,
-    status: result.ok ? 'ok' : result.skipped ? 'skipped' : 'error',
+    status: result.ok ? (result.empty ? 'ok_empty' : 'ok') : result.skipped ? 'skipped' : 'error',
     metadata: { provider: params.provider, rows: result.rows ?? 0, error: result.ok || result.skipped ? undefined : result.error },
   }).catch(() => {})
 

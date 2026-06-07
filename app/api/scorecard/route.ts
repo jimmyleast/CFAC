@@ -26,9 +26,14 @@ export async function GET(req: Request) {
   const keys = Array.from(new Set((defs || []).map((d) => d.metric_key).filter(Boolean) as string[]))
   let rows: { metric_key: string; value: number | string | null; period_label: string | null; period_start: string | null; source_id: string | null; dimension: unknown }[] = []
   if (keys.length) {
+    // recentActuals only needs the most recent few periods per key, and it re-sorts
+    // ascending internally — so bound the read to a recent window AND order DESCENDING
+    // so the .limit() cap drops the OLDEST rows, never the newest. (Ascending + a cap
+    // would silently truncate the latest periods and show stale actuals.)
+    const windowStart = new Date(Date.now() - 730 * 86_400_000).toISOString() // ~24 months
     const { data } = await admin.from('metrics')
       .select('metric_key, value, period_label, period_start, source_id, dimension')
-      .in('metric_key', keys).not('period_start', 'is', null).order('period_start', { ascending: true }).limit(5000)
+      .in('metric_key', keys).gte('period_start', windowStart).order('period_start', { ascending: false }).limit(5000)
     rows = (data || []) as typeof rows
   }
 

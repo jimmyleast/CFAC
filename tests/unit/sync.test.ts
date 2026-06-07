@@ -58,6 +58,7 @@ function adminMock({ conn, srcId, swapError, track, claimHeld, claimErr }: { con
       }
       if (table === 'data_sources') return {
         upsert: () => ({ select: () => ({ maybeSingle: async () => ({ data: srcId ? { id: srcId } : null }) }) }),
+        update: () => ({ eq: async () => ({ error: null }) }), // last_imported_at stamp after a non-empty swap
       }
       return {}
     },
@@ -102,6 +103,17 @@ describe('runSync', () => {
     expect(r.ok).toBe(true)
     expect(r.rows).toBe(1)
     expect(track.swapped).toBe(true) // single atomic swap, not insert-then-delete
+  })
+
+  it('an empty pull succeeds as empty (rows:0, empty:true) and does NOT swap or stamp freshness', async () => {
+    const track: { swapped?: boolean } = {}
+    const conn = { provider: 'bloomerang', status: 'connected', auth_kind: 'apikey', api_key_enc: encryptSecret('k'), token_expires_at: null }
+    const emptyConnector: Connector = { id: 'bloomerang', pull: async () => [] }
+    const r = await runSync(adminMock({ conn, srcId: 'src1', track }), 'bloomerang', { bloomerang: emptyConnector }, Date.now())
+    expect(r.ok).toBe(true)
+    expect(r.rows).toBe(0)
+    expect(r.empty).toBe(true)            // distinct, watchable signal
+    expect(track.swapped).toBeUndefined() // no swap RPC on an empty pull → last_imported_at left stale
   })
 
   it('BLOCKER-fix: a failed swap surfaces as an error (transaction rolls back, no data loss)', async () => {
@@ -186,6 +198,7 @@ function sharedStoreAdmin(store: { conn: Record<string, unknown>; metrics: { id:
       }
       if (table === 'data_sources') return {
         upsert: () => ({ select: () => ({ maybeSingle: async () => ({ data: { id: 'src1' } }) }) }),
+        update: () => ({ eq: async () => ({ error: null }) }),
       }
       return {}
     },

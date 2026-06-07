@@ -29,7 +29,7 @@ export type Connector = {
 // `skipped` is true ONLY for the benign "another run holds the lock" case — a
 // no-op, not a failure. Callers must classify it distinctly from real errors so
 // a routine cron/manual overlap doesn't surface as an alert-red sync failure.
-export type SyncResult = { ok: boolean; rows?: number; error?: string; skipped?: boolean }
+export type SyncResult = { ok: boolean; rows?: number; error?: string; skipped?: boolean; empty?: boolean }
 
 type ConnRow = {
   provider: string; status: string; auth_kind: string; external_label: string | null
@@ -163,10 +163,13 @@ export async function runSync(
     const creds = await resolveCreds(admin, conn as ConnRow, provider, nowMs)
     const pulled = await connector.pull({ creds, nowMs, account: (conn as ConnRow).external_label })
 
-    // One data_source per connection; replace its metrics so the figures are current.
+    // One data_source per connection. Do NOT stamp last_imported_at on the upsert —
+    // it must reflect when data actually MOVED, not merely when a pull completed; an
+    // empty pull that advanced it would mask a silently-broken connector from the
+    // freshness alarm. Stamped below only after a real (non-empty) swap.
     const slug = `conn-${providerId}`
     const { data: src } = await admin.from('data_sources')
-      .upsert({ name: provider.name, slug, kind: 'system', last_imported_at: new Date(nowMs).toISOString() }, { onConflict: 'slug' })
+      .upsert({ name: provider.name, slug, kind: 'system' }, { onConflict: 'slug' })
       .select('id').maybeSingle()
     if (!src) throw new Error('could not resolve data source')
 
@@ -174,15 +177,19 @@ export async function runSync(
     // Atomic swap: delete the source's old metrics and insert the fresh set in ONE
     // transaction (replace_source_metrics RPC). A failure rolls both back, so the
     // source is never two live sets (no double-count) and never momentarily empty
-    // (no blank-dashboard window). An empty pull leaves data as-is.
+    // (no blank-dashboard window). An empty pull leaves data (and last_imported_at)
+    // as-is.
     if (rows.length) {
       const { error: swapErr } = await admin.rpc('replace_source_metrics', { p_source_id: src.id, p_rows: rows })
       // Carry the DB SQLSTATE + message so last_error/telemetry can tell a retryable
       // timeout (57014) from a poison-pill data error (22xxx/23xxx) at 2am.
       if (swapErr) throw new Error(`metrics swap failed (${rows.length} rows): ${(swapErr as { code?: string }).code || ''} ${(swapErr as { message?: string }).message || swapErr}`.trim())
+      await admin.from('data_sources').update({ last_imported_at: new Date(nowMs).toISOString() }).eq('id', src.id)
     }
     await admin.from('connections').update({ last_sync_at: new Date(nowMs).toISOString(), last_error: null, status: 'connected' }).eq('provider', providerId)
-    return { ok: true, rows: rows.length }
+    // rows:0 is a successful-but-empty pull — a distinct, watchable signal (the
+    // connector authenticated but returned nothing). Callers/telemetry surface it.
+    return { ok: true, rows: rows.length, empty: rows.length === 0 }
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'sync failed'
     // Mark the connection unhealthy so the UI badge reflects sync failure, not just connect state.
