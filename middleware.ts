@@ -4,7 +4,18 @@ import { getSupabasePublicConfig } from '@/lib/supabase/config'
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request })
-  const { url, anonKey } = getSupabasePublicConfig()
+
+  // If the public Supabase config is missing/invalid, don't 500 every route —
+  // skip the auth-cookie refresh and let the request through. Pages that truly
+  // need Supabase will surface their own error; static/landing pages still render.
+  let url: string
+  let anonKey: string
+  try {
+    ;({ url, anonKey } = getSupabasePublicConfig())
+  } catch (e) {
+    console.error('[middleware] Supabase config unavailable — skipping auth refresh:', e instanceof Error ? e.message : e)
+    return response
+  }
 
   const supabase = createServerClient(url, anonKey, {
     cookies: {
