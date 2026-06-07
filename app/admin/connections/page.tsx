@@ -148,7 +148,7 @@ function Inner() {
 
       {connectedFlag && <Banner color={OK}>Connected {connectedFlag}.</Banner>}
       {errorFlag && <Banner color={ERR}>Connection failed: {errorFlag.replace(/_/g, ' ')}.</Banner>}
-      {!encryptionReady && <Banner color={ERR}>Token encryption key (CONNECTOR_ENC_KEY) is not set — connecting is disabled until it is configured in the server env.</Banner>}
+      {!encryptionReady && <Banner color={ERR}>Connection storage is temporarily unavailable — connecting is disabled until it recovers. Try again shortly.</Banner>}
       {loading && <div style={{ color: TEXT2 }}>Loading…</div>}
       {err && <div style={{ color: WARN }}>{err}</div>}
 

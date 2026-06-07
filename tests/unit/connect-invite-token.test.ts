@@ -72,4 +72,10 @@ describe('POST /api/connect-invites/[token] — public credential accept', () =>
     mAdmin.mockReturnValue(adminMock({ invite: { provider: 'bloomerang', expires_at: future(), used_at: null }, claim: { token: 'tok' }, upsertError: { message: 'db down' } }))
     expect((await POST(req({ apiKey: 'k' }), { params: { token: 'tok' } })).status).toBe(500)
   })
+
+  it('503 when the encryption key cannot be provisioned (storage unavailable)', async () => {
+    delete process.env.CONNECTOR_ENC_KEY // force the DB-backed key path
+    mAdmin.mockReturnValue({ from: () => { throw new Error('db down') } }) // ensureEncryptionKey() → false
+    expect((await POST(req({ apiKey: 'k' }), { params: { token: 'tok' } })).status).toBe(503)
+  })
 })

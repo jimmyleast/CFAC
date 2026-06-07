@@ -38,7 +38,7 @@ A signed BAA is required with every vendor that could touch PHI. **Send each ven
 | Vendor management | ⚠ | the BAA tracker (§2) |
 | Incident response / breach notification | ☐ | write policy |
 | Data retention & disposal | ☐ | write policy |
-| Key management / rotation | ⚠ | **rotate all keys before go-live** (some were shared in chat) |
+| Key management / rotation | ⚠ | **rotate all keys before go-live** (some were shared in chat). Connector-secret key is auto-provisioned to `platform_secrets` (DB) at soft launch for **non-PHI** connectors only — must move to `CONNECTOR_ENC_KEY` env / KMS before any PHI (see [PHI-INFRA-CHECKLIST.md](PHI-INFRA-CHECKLIST.md) §3). |
 
 ## 4. De-identification & minimum-necessary
 - Hope's grounding catalog selects **only** aggregate metric columns — never `import_rows.raw`, `metrics.dimension` free-text, or any client table.

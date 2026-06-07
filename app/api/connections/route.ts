@@ -3,7 +3,7 @@ import { getAdminClient } from '@/lib/admin'
 import { requireUserMfa, requireAdmin } from '@/lib/auth/aal'
 import { emitAppEvent } from '@/lib/telemetry/events'
 import { PROVIDERS, getProvider, isConfigured, blockedReason, isPhiGateReady } from '@/lib/connectors/providers'
-import { encryptSecret, ensureEncryptionKey } from "@/lib/connectors/crypto"
+import { encryptSecret, ensureEncryptionKey } from '@/lib/connectors/crypto'
 
 export const dynamic = 'force-dynamic'
 

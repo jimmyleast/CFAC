@@ -28,6 +28,7 @@ export type AppEventName =
   | 'connection.synced'
   | 'case.status_changed'
   | 'agency.changed'
+  | 'connector.enc_key.created'
 
 export type AppEventCategory = 'funnel' | 'latency' | 'error' | 'quality' | 'system' | 'auth'
 

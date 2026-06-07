@@ -17,4 +17,4 @@ create table if not exists platform_secrets (
 );
 
 alter table platform_secrets enable row level security;
-revoke all on platform_secrets from anon, authenticated;
+revoke all on platform_secrets from anon, authenticated, public;
