@@ -6,7 +6,7 @@ export type ChatMessage = { role: 'user' | 'assistant'; content: string }
 export const MODELS = {
   anthropic: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6',
   openai: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-  gemini: process.env.GEMINI_MODEL || 'gemini-1.5-flash-latest',
+  gemini: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
 }
 
 export function hasOpenAI() { return Boolean((process.env.OPENAI_API_KEY || '').trim()) }
