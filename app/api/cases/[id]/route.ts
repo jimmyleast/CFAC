@@ -32,10 +32,22 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   // Case data is PHI: the gate (not the table merely being empty) is the control.
   if (!isPhiGateReady()) return NextResponse.json({ error: 'Case workflow is locked until the HIPAA infrastructure is in place.' }, { status: 403 })
 
-  const body = await req.json().catch(() => ({})) as { to?: string; note?: string }
-  if (!isCaseStatus(body.to)) return NextResponse.json({ error: 'invalid target status' }, { status: 400 })
-
+  const body = await req.json().catch(() => ({})) as { to?: string; note?: string; clearReview?: boolean }
   const admin = getAdminClient()
+
+  // Review-queue approval: a human clears the review flag on an ingested case.
+  if (body.clearReview === true && body.to === undefined) {
+    const { data: rc } = await admin.from('cases').select('id').eq('id', params.id).maybeSingle()
+    if (!rc) return NextResponse.json({ error: 'not found' }, { status: 404 })
+    const { error: re } = await admin.from('cases').update({ review_flag: false, updated_at: new Date().toISOString() }).eq('id', params.id)
+    if (re) return NextResponse.json({ error: re.message }, { status: 500 })
+    const ae = await admin.from('case_events').insert({ case_id: params.id, from_status: null, to_status: null, note: 'reviewed / approved', actor_id: user.id })
+    if (ae.error) return NextResponse.json({ error: 'audit write failed' }, { status: 500 })
+    await emitAppEvent({ eventName: 'case.status_changed', category: 'system', userId: user.id, route: '/api/cases', status: 'reviewed', metadata: { action: 'review_cleared' } }).catch(() => {})
+    return NextResponse.json({ ok: true })
+  }
+
+  if (!isCaseStatus(body.to)) return NextResponse.json({ error: 'invalid target status' }, { status: 400 })
   const { data: c } = await admin.from('cases').select('id, status, summary').eq('id', params.id).maybeSingle()
   if (!c) return NextResponse.json({ error: 'not found' }, { status: 404 })
   if (!isCaseStatus(c.status) || !canMove(c.status, body.to)) {
@@ -50,7 +62,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (upd.error) return NextResponse.json({ error: upd.error.message }, { status: 500 })
   if (!upd.data) return NextResponse.json({ error: 'case changed concurrently — reload' }, { status: 409 })
 
-  await admin.from('case_events').insert({ case_id: params.id, from_status: c.status, to_status: body.to, note: String(body.note || '').slice(0, 1000) || null, actor_id: user.id })
+  const mvAudit = await admin.from('case_events').insert({ case_id: params.id, from_status: c.status, to_status: body.to, note: String(body.note || '').slice(0, 1000) || null, actor_id: user.id })
+  if (mvAudit.error) return NextResponse.json({ error: 'audit write failed' }, { status: 500 })
   await emitAppEvent({ eventName: 'case.status_changed', category: 'system', userId: user.id, route: '/api/cases', status: 'ok', metadata: { from: c.status, to: body.to } }).catch(() => {})
   return NextResponse.json({ ok: true })
 }

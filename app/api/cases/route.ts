@@ -13,7 +13,9 @@ export async function GET(req: Request) {
   const auth = await requireUserMfa(req)
   if ('response' in auth) return auth.response
 
-  const agendaFilter = new URL(req.url).searchParams.get('agenda') as Agenda | null
+  const params = new URL(req.url).searchParams
+  const agendaFilter = params.get('agenda') as Agenda | null
+  const reviewOnly = params.get('review') === '1'
   const admin = getAdminClient()
 
   let q = admin.from('cases')
@@ -21,6 +23,7 @@ export async function GET(req: Request) {
     .order('last_update', { ascending: false, nullsFirst: false })
     .limit(500)
   if (agendaFilter && AGENDAS.some((a) => a.key === agendaFilter)) q = q.eq('agenda', agendaFilter)
+  if (reviewOnly) q = q.eq('review_flag', true) // the review queue: cases awaiting human approval
 
   const [casesRes, agenciesRes] = await Promise.all([
     q,

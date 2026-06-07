@@ -67,4 +67,20 @@ describe('PATCH /api/cases/[id] — case-status move', () => {
     expect(res.status).toBe(200)
     expect((await res.json()).ok).toBe(true)
   })
+
+  // Review-queue approval (clearReview) — same PHI gate as the status move.
+  it('403s clearReview when the PHI gate is closed', async () => {
+    delete process.env.PHI_GATE_READY
+    expect((await PATCH(req({ clearReview: true }), { params: { id: 'c1' } })).status).toBe(403)
+  })
+
+  it('404s clearReview on an unknown case', async () => {
+    mAdmin.mockReturnValue(adminMock({ caseRow: null }))
+    expect((await PATCH(req({ clearReview: true }), { params: { id: 'ghost' } })).status).toBe(404)
+  })
+
+  it('200 on clearReview for an existing case', async () => {
+    mAdmin.mockReturnValue(adminMock({ caseRow: { id: 'c1', status: 'new', summary: '' } }))
+    expect((await PATCH(req({ clearReview: true }), { params: { id: 'c1' } })).status).toBe(200)
+  })
 })

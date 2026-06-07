@@ -54,6 +54,8 @@ export function getCfacNav(isAdmin: boolean): NavSection[] {
       section: 'CASE REVIEW',
       items: [
         { label: 'MDT Agendas', href: '/case-review', icon: 'ClipboardCheck', description: 'New / Pending / Criminal case agendas' },
+        { label: 'Review Queue', href: '/case-review/queue', icon: 'ListChecks', description: 'Cases awaiting human approval' },
+        { label: 'Accountability', href: '/case-review/accountability', icon: 'BarChart3', description: 'Agency scorecards (grant KPIs)' },
         { label: 'Partner Agencies', href: '/admin/agencies', icon: 'Building2', description: 'MDT partner agencies' },
       ],
     },
