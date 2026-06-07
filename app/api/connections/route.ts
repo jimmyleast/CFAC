@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getAdminClient } from '@/lib/admin'
 import { requireUserMfa, requireAdmin } from '@/lib/auth/aal'
 import { emitAppEvent } from '@/lib/telemetry/events'
-import { PROVIDERS, getProvider, isConfigured, blockedReason, isPhiGateReady } from '@/lib/connectors/providers'
+import { PROVIDERS, getProvider, isConfigured, blockedReason, isPhiGateReady, phiKeyBlocked } from '@/lib/connectors/providers'
 import { encryptSecret, ensureEncryptionKey } from '@/lib/connectors/crypto'
 
 export const dynamic = 'force-dynamic'
@@ -24,7 +24,9 @@ export async function GET(req: Request) {
     return {
       id: p.id, name: p.name, authKind: p.authKind, description: p.description,
       phiAllowed: p.phiAllowed, baa: p.baa,
-      configured: isConfigured(p.id),
+      // configured drives the "Connect" affordance — a PHI provider missing the
+      // strong env key is NOT connectable even if creds + gate are otherwise present.
+      configured: isConfigured(p.id) && !phiKeyBlocked(p.id),
       blockedReason: blockedReason(p.id),
       status: c?.status || 'disconnected',
       externalLabel: c?.external_label ?? null,
@@ -47,6 +49,12 @@ export async function POST(req: Request) {
   // PHI-gated providers (e.g. Qualtrics) must NOT be connectable until the HIPAA
   // infra is in place — enforce here, not just in the UI.
   if (provider.phiGated && !isPhiGateReady()) return NextResponse.json({ error: 'This system handles PHI and is blocked until the HIPAA infrastructure is in place.' }, { status: 403 })
+  // Even with the gate open, a PHI provider must be sealed with the strong env key,
+  // never the co-located DB fallback. Refuse rather than silently DB-key-seal PHI.
+  if (phiKeyBlocked(provider.id)) {
+    await emitAppEvent({ eventName: 'connector.phi_key.blocked', category: 'error', userId: gate.user.id, route: '/api/connections', status: 'blocked', metadata: { provider: provider.id, surface: 'connections' } }).catch(() => {})
+    return NextResponse.json({ error: 'This system handles PHI and cannot be connected until CONNECTOR_ENC_KEY is provisioned (the auto-provisioned DB key is not PHI-grade).' }, { status: 503 })
+  }
   const apiKey = String(body.apiKey || '').trim()
   if (!apiKey) return NextResponse.json({ error: 'apiKey required' }, { status: 400 })
 

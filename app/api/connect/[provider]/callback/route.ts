@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAdminClient } from '@/lib/admin'
 import { requireAdmin } from '@/lib/auth/aal'
-import { getProvider, providerEnv } from '@/lib/connectors/providers'
+import { getProvider, providerEnv, phiKeyBlocked } from '@/lib/connectors/providers'
 import { isStateExpired } from '@/lib/connectors/oauth'
 import { encryptSecret, ensureEncryptionKey } from '@/lib/connectors/crypto'
 import { resolveAppBaseUrl } from '@/lib/url'
@@ -21,6 +21,12 @@ export async function GET(req: Request, { params }: { params: { provider: string
 
   const provider = getProvider(params.provider)
   if (!provider || provider.authKind !== 'oauth2') return back('error=unknown_provider')
+  // Defense-in-depth: refuse to seal a PHI provider's tokens with the co-located DB
+  // key once the gate is open. Mirrors the start-route check in case it was bypassed.
+  if (phiKeyBlocked(provider.id)) {
+    await emitAppEvent({ eventName: 'connector.phi_key.blocked', category: 'error', userId: gate.user.id, route: `/api/connect/${provider.id}/callback`, status: 'blocked', metadata: { provider: provider.id, surface: 'callback' } }).catch(() => {})
+    return back('error=phi_key_required')
+  }
   if (!(await ensureEncryptionKey())) return back('error=encryption_not_configured')
 
   const url = new URL(req.url)

@@ -1,10 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import crypto from 'crypto'
+
+vi.mock('@/lib/telemetry/events', () => ({ emitAppEvent: vi.fn(async () => {}) }))
+
 import { toMetricRows, runSync, type Connector } from '@/lib/connectors/sync'
 import { encryptSecret } from '@/lib/connectors/crypto'
 import { CONNECTORS } from '@/lib/connectors/impl'
 
-beforeEach(() => { process.env.CONNECTOR_ENC_KEY = crypto.randomBytes(32).toString('base64') })
+beforeEach(() => { process.env.CONNECTOR_ENC_KEY = crypto.randomBytes(32).toString('base64'); delete process.env.PHI_GATE_READY })
 
 describe('toMetricRows', () => {
   it('maps + drops non-finite values', () => {
@@ -72,6 +75,19 @@ describe('runSync', () => {
     const r = await runSync(adminMock({ conn: { status: 'connected' } }), 'qgiv', {}, Date.now())
     expect(r.ok).toBe(false)
     expect(r.error).toMatch(/no connector/)
+  })
+
+  it('refuses a phiGated provider when the gate is open without the strong env key (no pull / no re-seal)', async () => {
+    delete process.env.CONNECTOR_ENC_KEY // only the co-located DB key would be available
+    process.env.PHI_GATE_READY = 'true'
+    let pulled = false
+    const spy: Connector = { id: 'microsoft', pull: async () => { pulled = true; return [] } }
+    const conn = { provider: 'microsoft', status: 'connected', auth_kind: 'oauth2', access_token_enc: 'x', refresh_token_enc: 'y', token_expires_at: null }
+    const r = await runSync(adminMock({ conn, srcId: 'src1' }), 'microsoft', { microsoft: spy }, Date.now())
+    expect(r.ok).toBe(false)
+    expect(r.error).toMatch(/CONNECTOR_ENC_KEY/)
+    expect(pulled).toBe(false) // short-circuited before resolveCreds/pull → no token decrypt or re-seal
+    delete process.env.PHI_GATE_READY
   })
 
   it('errors when the connection is not connected', async () => {

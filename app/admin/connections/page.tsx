@@ -18,7 +18,7 @@ const ERR = '#EB5757'
 type Provider = {
   id: string; name: string; authKind: 'oauth2' | 'apikey'; description: string
   phiAllowed: boolean; baa: 'yes' | 'no' | 'unknown'; configured: boolean
-  blockedReason: 'phi_gate' | 'needs_setup' | null
+  blockedReason: 'phi_gate' | 'phi_key' | 'needs_setup' | null
   status: 'connected' | 'disconnected' | 'error'; externalLabel: string | null
   lastSyncAt: string | null; lastError: string | null
 }
@@ -181,8 +181,8 @@ function Inner() {
                         <button disabled={busy === p.id} onClick={() => disconnect(p.id)} style={{ background: 'none', border: `1px solid ${LINE}`, color: WARN, borderRadius: 8, padding: '8px 14px', fontSize: 13, cursor: 'pointer' }}>Disconnect</button>
                       </div>
                     )
-                  ) : !p.configured && p.authKind === 'oauth2' ? (
-                    <span style={{ fontSize: 12, color: TEXT4, fontStyle: 'italic' }}>{p.blockedReason === 'phi_gate' ? 'PHI gate pending' : 'needs setup'}</span>
+                  ) : p.blockedReason ? (
+                    <span style={{ fontSize: 12, color: TEXT4, fontStyle: 'italic' }}>{p.blockedReason === 'phi_gate' ? 'PHI gate pending' : p.blockedReason === 'phi_key' ? 'PHI key required' : 'needs setup'}</span>
                   ) : p.authKind === 'oauth2' ? (
                     isAdmin && <a href={`/api/connect/${p.id}/start`} style={{ background: GOLD, color: '#0D0D0F', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>Connect</a>
                   ) : null}
@@ -190,7 +190,7 @@ function Inner() {
               </div>
 
               {/* API-key connect form + delegated invite */}
-              {isAdmin && p.authKind === 'apikey' && p.status !== 'connected' && encryptionReady && (
+              {isAdmin && p.authKind === 'apikey' && p.status !== 'connected' && encryptionReady && !p.blockedReason && (
                 <>
                   <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
                     <input type="password" value={keyDraft[p.id] || ''} onChange={(e) => setKeyDraft({ ...keyDraft, [p.id]: e.target.value })}

@@ -1,7 +1,8 @@
 import crypto from 'crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { decryptSecret, encryptSecret, ensureEncryptionKey } from '@/lib/connectors/crypto'
-import { getProvider, providerEnv, type ProviderDef } from '@/lib/connectors/providers'
+import { getProvider, providerEnv, phiKeyBlocked, type ProviderDef } from '@/lib/connectors/providers'
+import { emitAppEvent } from '@/lib/telemetry/events'
 
 // The sync engine: turns a stored connection into real data in the metrics layer.
 // runSync: load connection → decrypt creds (refresh OAuth if stale) → connector
@@ -119,6 +120,14 @@ export async function runSync(
 ): Promise<SyncResult> {
   const provider = getProvider(providerId)
   if (!provider) return { ok: false, error: 'unknown provider' }
+  // A sync can re-seal rotated OAuth tokens (refreshOAuth). For a PHI provider that
+  // must use the strong env key — refuse rather than re-seal PHI with the DB key.
+  // This path is headless (cron/admin sync), so audit the refusal: it's the only
+  // signal an operator gets that the PHI gate is open but misconfigured.
+  if (phiKeyBlocked(providerId)) {
+    void emitAppEvent({ eventName: 'connector.phi_key.blocked', category: 'error', route: 'lib/connectors/sync', status: 'blocked', metadata: { provider: providerId, surface: 'sync' } }).catch(() => {})
+    return { ok: false, error: 'PHI connector requires CONNECTOR_ENC_KEY (the DB fallback key is not PHI-grade)' }
+  }
   const connector = connectors[providerId]
   if (!connector) return { ok: false, error: 'no connector implemented yet' }
 

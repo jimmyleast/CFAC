@@ -4,7 +4,7 @@ import crypto from 'crypto'
 vi.mock('@/lib/admin', () => ({ getAdminClient: vi.fn() }))
 vi.mock('@/lib/telemetry/events', () => ({ emitAppEvent: vi.fn(async () => {}) }))
 
-import { ensureEncryptionKey, encryptSecret, decryptSecret, __resetKeyCacheForTests } from '@/lib/connectors/crypto'
+import { ensureEncryptionKey, encryptSecret, decryptSecret, isEnvKeyConfigured, __resetKeyCacheForTests } from '@/lib/connectors/crypto'
 import { getAdminClient } from '@/lib/admin'
 
 const mAdmin = getAdminClient as unknown as ReturnType<typeof vi.fn>
@@ -108,5 +108,30 @@ describe('ensureEncryptionKey', () => {
   it('returns false from a cold cache when the DB is unreachable', async () => {
     mAdmin.mockReturnValue({ from: () => { throw new Error('db down') } })
     expect(await ensureEncryptionKey()).toBe(false)
+  })
+})
+
+describe('isEnvKeyConfigured (PHI-grade key check)', () => {
+  it('false when no env key, even after a DB key is provisioned', async () => {
+    const state = storeMock()
+    expect(isEnvKeyConfigured()).toBe(false)
+    expect(await ensureEncryptionKey()).toBe(true) // DB key now in force
+    expect(state.inserted).toBe(true)
+    expect(isEnvKeyConfigured()).toBe(false) // ...but that is NOT PHI-grade
+  })
+
+  it('true only when a valid 32-byte env key is set', () => {
+    process.env.CONNECTOR_ENC_KEY = crypto.randomBytes(32).toString('base64')
+    expect(isEnvKeyConfigured()).toBe(true)
+  })
+
+  it('true for a valid 64-char hex env key (the distinct hex branch)', () => {
+    process.env.CONNECTOR_ENC_KEY = crypto.randomBytes(32).toString('hex')
+    expect(isEnvKeyConfigured()).toBe(true)
+  })
+
+  it('false for a present-but-undersized env key', () => {
+    process.env.CONNECTOR_ENC_KEY = Buffer.from('tooshort').toString('base64')
+    expect(isEnvKeyConfigured()).toBe(false)
   })
 })
