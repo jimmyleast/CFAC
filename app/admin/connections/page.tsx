@@ -100,6 +100,16 @@ function Inner() {
       try { await navigator.clipboard.writeText(d.link) } catch { /* clipboard may be blocked */ }
     } finally { setBusy(null) }
   }
+  async function syncNow(id: string) {
+    setBusy(id)
+    try {
+      const res = await authFetch(`/api/connections/${encodeURIComponent(id)}/sync`, { method: 'POST' })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) alert(d.error || `Sync failed (${res.status})`)
+      else alert(`Synced — ${d.rows ?? 0} metric(s) loaded.`)
+      await load()
+    } finally { setBusy(null) }
+  }
   async function disconnect(id: string) {
     if (!confirm(`Disconnect ${id}? Stored credentials will be removed.`)) return
     setBusy(id)
@@ -141,11 +151,17 @@ function Inner() {
                     </span>
                   </div>
                   <div style={{ color: TEXT2, fontSize: 12.5, marginTop: 4 }}>{p.description}</div>
+                  {p.status === 'connected' && p.lastSyncAt && <div style={{ color: TEXT4, fontSize: 11, marginTop: 3 }}>Last synced {new Date(p.lastSyncAt).toLocaleString()}</div>}
                   {p.lastError && <div style={{ color: ERR, fontSize: 11, marginTop: 4 }}>Last error: {p.lastError}</div>}
                 </div>
                 <div style={{ flexShrink: 0 }}>
                   {p.status === 'connected' ? (
-                    isAdmin && <button disabled={busy === p.id} onClick={() => disconnect(p.id)} style={{ background: 'none', border: `1px solid ${LINE}`, color: WARN, borderRadius: 8, padding: '8px 14px', fontSize: 13, cursor: 'pointer' }}>Disconnect</button>
+                    isAdmin && (
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button disabled={busy === p.id} onClick={() => syncNow(p.id)} style={{ background: GOLD, color: '#0D0D0F', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{busy === p.id ? 'Syncing…' : 'Sync now'}</button>
+                        <button disabled={busy === p.id} onClick={() => disconnect(p.id)} style={{ background: 'none', border: `1px solid ${LINE}`, color: WARN, borderRadius: 8, padding: '8px 14px', fontSize: 13, cursor: 'pointer' }}>Disconnect</button>
+                      </div>
+                    )
                   ) : !p.configured && p.authKind === 'oauth2' ? (
                     <span style={{ fontSize: 12, color: TEXT4, fontStyle: 'italic' }}>{p.blockedReason === 'phi_gate' ? 'PHI gate pending' : 'needs setup'}</span>
                   ) : p.authKind === 'oauth2' ? (
