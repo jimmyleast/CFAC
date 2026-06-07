@@ -41,6 +41,52 @@ Railway has no broad HIPAA BAA → it stays the **non-PHI app tier only**.
   - **Enforced in code (not just a checklist item):** once `PHI_GATE_READY=true`, the DB-key fallback is **refused for every `phiGated` provider**. `phiKeyBlocked()` (lib/connectors/providers.ts) blocks the connect (OAuth start + callback), the API-key POST, and token re-seals on sync (each refusal emits a `connector.phi_key.blocked` audit event); `assertPhiKeyInvariant()` runs at server startup (instrumentation.ts) and **fails the boot** if PHI mode is on without `CONNECTOR_ENC_KEY`. So flipping the gate without provisioning the strong key fails closed — it cannot silently seal PHI with the co-located DB key.
   - **Runbook — if the deploy crash-loops right after you set `PHI_GATE_READY=true`:** this is the fail-closed guard, not a bug. Check the host (Railway) deploy logs for the `CONNECTOR_ENC_KEY` invariant message, set `CONNECTOR_ENC_KEY` in the **same** env group, and redeploy. Provision the key **first**, then flip the gate, to avoid the crash-loop entirely.
 
+### Fail-closed audit: no DB-key-sealed PHI ciphertext AT REST (enforced)
+`assertPhiKeyInvariant()` (above) blocks *new* DB-key seals, but it can't see ciphertext
+that was **already stored** under the co-located DB fallback key before that guard
+existed. A second startup assertion closes that gap: `assertNoDbKeySealedPhiCiphertext()`
+(`lib/connectors/phi-key-audit.ts`, also run from `instrumentation.ts`; logic exercised in
+CI by `tests/unit/phi-key-audit.test.ts`) **refuses to boot** if any PHI provider
+(Microsoft 365, DocuSign, Qualtrics) holds connector ciphertext (`access_token_enc` /
+`refresh_token_enc` / `api_key_enc`) that is **not** provably sealed under the strong env
+key `CONNECTOR_ENC_KEY` (every populated column must decrypt under it). Such ciphertext was
+necessarily sealed with the DB fallback key — a PHI-custody violation, since the key sits
+in the same database as the secret. (The PHI gate has never been opened, so today there
+should be **zero** PHI ciphertext at all; `runSync` already refuses to touch such a row, so
+it would otherwise sit there undetected.)
+
+Operational behavior:
+- **Node-only, retry-aware.** The connections query retries with bounded backoff before
+  failing closed, so a transient DB blip at boot isn't mistaken for a violation.
+- **Visible.** A violation emits a durable `connector.phi_audit.violation` `app_events` row
+  (provider + column names only, never secrets) before the boot-blocking throw; a clean run
+  emits `connector.phi_audit.passed` (a per-boot record in `app_events` — **forensic today;
+  wire an absence-monitor on it to alert when the audit silently stops running**); a query
+  that can't complete after retries emits `connector.phi_audit.unavailable`.
+- **No silent bypass in prod.** If `SUPABASE_SERVICE_ROLE_KEY` is unset in production, the
+  audit can't reach the store, so the server **refuses to boot** rather than skipping the
+  control. Outside production it skips with a loud warning.
+
+**Operator runbook — three distinct boot-block signatures (different responses):**
+| Boot-log line | Meaning | Action |
+|---|---|---|
+| `PHI_GATE_READY=true but CONNECTOR_ENC_KEY is not set` | New-seal invariant tripped (gate open, no env key) | Provision `CONNECTOR_ENC_KEY`, then redeploy (provision key **before** flipping the gate). |
+| `[phi-key-audit] FAIL CLOSED: … PHI custody violation` | A PHI connector holds DB-key-sealed ciphertext at rest | **Remediate (below)**, then redeploy. Do NOT force the server up. |
+| `phi-key-audit: connections query failed after N attempt(s)` | Audit couldn't run (DB unreachable/degraded) | Infra issue — restore Supabase; the host boots once the DB recovers. |
+| `[phi-key-audit] SECURITY CONTROL CANNOT RUN: SUPABASE_SERVICE_ROLE_KEY is unset` | Misconfigured prod env | Set the service-role key; deliberate refusal, not a bug. |
+
+**If the at-rest audit fails closed, remediate before re-booting — pick one:**
+- **Scrub + reconnect (preferred).** Disconnect the offending provider so its secret
+  columns clear (Connections portal → Disconnect), or
+  `update connections set access_token_enc=null, refresh_token_enc=null, api_key_enc=null
+  where provider in ('microsoft','docusign','qualtrics')`. Then, once the gate is
+  legitimately open **with `CONNECTOR_ENC_KEY` set**, reconnect so the secret is freshly
+  sealed under the env key.
+- **Re-seal under the env key.** With `CONNECTOR_ENC_KEY` in force, decrypt each affected
+  secret with the old DB key (`platform_secrets.connector_enc`) and re-`encryptSecret` it
+  (now using the env key), then overwrite the column. Only viable while the DB key is still
+  recoverable; otherwise use scrub + reconnect.
+
 ## 4. Data-handling controls (the technical layer)
 - [ ] **De-identification boundary live:** tokenize/redact before any LLM call; mapping in a separate, short-TTL store; audit logs hold tokens only. (`redactPHI` exists; extend to a tokenization layer for case data.)
 - [ ] **Identifiable vs aggregate split:** case-level data lands in a restricted schema/table with stricter RLS; only de-identified aggregates flow to dashboards/Hope/non-BAA vendors.

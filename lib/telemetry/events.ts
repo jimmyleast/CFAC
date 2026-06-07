@@ -34,6 +34,12 @@ export type AppEventName =
   // CONNECTOR_ENC_KEY is not in force (DB-key fallback is not PHI-grade). High-signal:
   // fires only when the PHI gate is misconfigured — see lib/connectors/providers.ts.
   | 'connector.phi_key.blocked'
+  // At-rest audit (startup/CI): a phiGated connector holds ciphertext NOT sealed
+  // under the strong env key (i.e. DB-key-sealed). violation = fail-closed boot;
+  // passed = clean-run heartbeat; unavailable = audit couldn't complete (DB error).
+  | 'connector.phi_audit.violation'
+  | 'connector.phi_audit.passed'
+  | 'connector.phi_audit.unavailable'
 
 export type AppEventCategory = 'funnel' | 'latency' | 'error' | 'quality' | 'system' | 'auth'
 
