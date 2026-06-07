@@ -54,6 +54,7 @@ export function getCfacNav(isAdmin: boolean): NavSection[] {
       section: 'CASE REVIEW',
       items: [
         { label: 'MDT Agendas', href: '/case-review', icon: 'ClipboardCheck', description: 'New / Pending / Criminal case agendas' },
+        { label: 'Partner Agencies', href: '/admin/agencies', icon: 'Building2', description: 'MDT partner agencies' },
       ],
     },
     {

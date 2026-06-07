@@ -27,6 +27,7 @@ export type AppEventName =
   | 'connect_invite.created'
   | 'connection.synced'
   | 'case.status_changed'
+  | 'agency.changed'
 
 export type AppEventCategory = 'funnel' | 'latency' | 'error' | 'quality' | 'system' | 'auth'
 
