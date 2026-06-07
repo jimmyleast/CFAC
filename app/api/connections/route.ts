@@ -28,6 +28,7 @@ export async function GET(req: Request) {
       // strong env key is NOT connectable even if creds + gate are otherwise present.
       configured: isConfigured(p.id) && !phiKeyBlocked(p.id),
       blockedReason: blockedReason(p.id),
+      setupHint: p.setupHint ?? null,
       status: c?.status || 'disconnected',
       externalLabel: c?.external_label ?? null,
       lastSyncAt: c?.last_sync_at ?? null,

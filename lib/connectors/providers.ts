@@ -19,6 +19,10 @@ export type ProviderDef = {
   phiGated?: boolean
   description: string
   scopes: string[]
+  // Shown when a provider is blocked on 'needs_setup' — an honest, actionable note
+  // about the one-time prerequisite (e.g. register an Intuit app) instead of a bare
+  // "needs setup".
+  setupHint?: string
   // oauth2 endpoint builders (tenant interpolated for Microsoft)
   authUrl?: string
   tokenUrl?: string
@@ -91,6 +95,9 @@ export const PROVIDERS: Record<string, ProviderDef> = {
     baa: 'no',
     description: 'Budget & finance data (non-PHI).',
     scopes: ['com.intuit.quickbooks.accounting'],
+    // QuickBooks is OAuth-only (no API key/PAT). One-time: register an app at
+    // developer.intuit.com and set QBO_CLIENT_ID/QBO_CLIENT_SECRET, then Connect.
+    setupHint: 'Needs a one-time Intuit app: register at developer.intuit.com, then set QBO_CLIENT_ID and QBO_CLIENT_SECRET. After that, Connect works.',
     authUrl: 'https://appcenter.intuit.com/connect/oauth2',
     tokenUrl: 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer',
   },
@@ -114,14 +121,15 @@ export const PROVIDERS: Record<string, ProviderDef> = {
   },
   asana: {
     id: 'asana',
+    // Connect with a Personal Access Token (asana.com → My Settings → Apps →
+    // Developer apps → Personal access token). No OAuth app needed — the PAT is
+    // a bearer token the connector uses directly. Non-PHI.
     name: 'Asana',
-    authKind: 'oauth2',
+    authKind: 'apikey',
     phiAllowed: false, // project mgmt, no BAA → non-PHI
     baa: 'no',
-    description: 'Project management — projects & tasks (non-PHI).',
-    scopes: ['default'],
-    authUrl: 'https://app.asana.com/-/oauth_authorize',
-    tokenUrl: 'https://app.asana.com/-/oauth_token',
+    description: 'Project management — projects & tasks (non-PHI). Connect with a Personal Access Token.',
+    scopes: [],
   },
   docusign: {
     id: 'docusign',

@@ -18,7 +18,7 @@ const ERR = '#EB5757'
 type Provider = {
   id: string; name: string; authKind: 'oauth2' | 'apikey'; description: string
   phiAllowed: boolean; baa: 'yes' | 'no' | 'unknown'; configured: boolean
-  blockedReason: 'phi_gate' | 'phi_key' | 'needs_setup' | null
+  blockedReason: 'phi_gate' | 'phi_key' | 'needs_setup' | null; setupHint: string | null
   status: 'connected' | 'disconnected' | 'error'; externalLabel: string | null
   lastSyncAt: string | null; lastError: string | null
 }
@@ -182,7 +182,7 @@ function Inner() {
                       </div>
                     )
                   ) : p.blockedReason ? (
-                    <span style={{ fontSize: 12, color: TEXT4, fontStyle: 'italic' }}>{p.blockedReason === 'phi_gate' ? 'PHI gate pending' : p.blockedReason === 'phi_key' ? 'PHI key required' : 'needs setup'}</span>
+                    <span style={{ fontSize: 12, color: TEXT4, fontStyle: 'italic' }} title={p.blockedReason === 'phi_gate' ? 'Handles PHI — blocked until a signed BAA and the Supabase HIPAA add-on are in place.' : undefined}>{p.blockedReason === 'phi_gate' ? 'Awaiting BAA + HIPAA add-on' : p.blockedReason === 'phi_key' ? 'PHI key required' : 'needs setup'}</span>
                   ) : p.authKind === 'oauth2' ? (
                     isAdmin && <a href={`/api/connect/${p.id}/start`} style={{ background: GOLD, color: '#0D0D0F', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>Connect</a>
                   ) : null}
@@ -208,6 +208,12 @@ function Inner() {
                     </div>
                   )}
                 </>
+              )}
+              {/* Actionable setup guidance for OAuth providers that need a one-time app. */}
+              {p.blockedReason === 'needs_setup' && p.setupHint && (
+                <div style={{ fontSize: 12, color: TEXT2, marginTop: 10, lineHeight: 1.5, background: '#0D0D0F', border: `1px solid ${LINE}`, borderRadius: 8, padding: '10px 12px' }}>
+                  <span style={{ color: WARN, fontWeight: 600 }}>Setup needed:</span> {p.setupHint}
+                </div>
               )}
               {!p.phiAllowed && <div style={{ fontSize: 11, color: TEXT4, marginTop: 10 }}>⚠ No BAA — connect for non-PHI data only.</div>}
             </div>

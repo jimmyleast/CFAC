@@ -77,11 +77,11 @@ const quickbooks: Connector = {
   },
 }
 
-// --- Asana (project management) — OAuth bearer. ---
+// --- Asana (project management) — Personal Access Token (or OAuth bearer). ---
 const asana: Connector = {
   id: 'asana',
   async pull({ creds, nowMs }) {
-    const token = creds.accessToken
+    const token = creds.apiKey || creds.accessToken
     if (!token) throw new Error('missing access token')
     const year = String(new Date(nowMs).getUTCFullYear())
     const url = 'https://app.asana.com/api/1.0/users/me'
