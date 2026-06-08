@@ -13,7 +13,8 @@ const OK = '#7DD3C7'
 const WARN = '#E0846B'
 
 type TabMetric = { metricKey: string; label: string; period: string | null; value: number; unit: string | null }
-type WorkbookTab = { name: string; metrics: TabMetric[] }
+type WorkbookTabSection = { name: string; metrics: TabMetric[] }
+type WorkbookTab = { name: string; metrics: TabMetric[]; sections: WorkbookTabSection[] }
 type WorkbookReport = { sourceName: string; sourceSlug: string; tabs: WorkbookTab[] }
 
 async function token() {
@@ -98,6 +99,25 @@ export default function ReportsPage() {
                 ))}
               </div>
             </div>
+
+            {activeTab.sections?.length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10, marginBottom: 12 }}>
+                {activeTab.sections.map((section) => (
+                  <section key={section.name} style={{ border: `1px solid ${LINE}`, borderRadius: 8, background: BG2, overflow: 'hidden' }}>
+                    <div style={{ padding: '8px 10px', borderBottom: `1px solid ${LINE}`, color: GOLD, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{section.name}</div>
+                    <div style={{ padding: '6px 10px' }}>
+                      {section.metrics.slice(0, 10).map((m, i) => (
+                        <div key={`${section.name}-${m.metricKey}-${m.period}-${i}`} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, padding: '5px 0', borderBottom: i === Math.min(section.metrics.length, 10) - 1 ? 'none' : `1px solid ${LINE}` }}>
+                          <div style={{ color: TEXT2, fontSize: 12, overflowWrap: 'anywhere' }}>{m.label}<span style={{ color: TEXT4 }}>{m.period ? ` · ${m.period}` : ''}</span></div>
+                          <div style={{ color: TEXT, fontSize: 12, fontFamily: 'var(--font-heading)' }}>{fmt(m.value, m.unit)}</div>
+                        </div>
+                      ))}
+                      {section.metrics.length > 10 && <div style={{ color: TEXT4, fontSize: 11, paddingTop: 6 }}>+ {section.metrics.length - 10} more rows below</div>}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            )}
 
             <div style={{ overflowX: 'auto', border: `1px solid ${LINE}`, borderRadius: 8, background: BG2 }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 680 }}>

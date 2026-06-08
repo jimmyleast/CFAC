@@ -11,7 +11,7 @@ describe('groupWorkbookReports', () => {
         unit: 'count',
         period_label: '2026-01',
         period_start: '2026-01-01',
-        dimension: { workbook_sheet: 'Reach', dashboard_row: 'Reach' },
+        dimension: { workbook_sheet: 'Reach', dashboard_section: 'Year to date', dashboard_row: 'Reach' },
         data_sources: { name: 'CFAC Dashboard 2026', slug: 'cfac-dashboard-2026' },
       },
       {
@@ -27,6 +27,7 @@ describe('groupWorkbookReports', () => {
     ])
     expect(reports.map((r) => r.sourceSlug).sort()).toEqual(['cfac-dashboard-2026', 'education-sheet'])
     expect(reports.find((r) => r.sourceSlug === 'cfac-dashboard-2026')?.tabs[0].name).toBe('Reach')
+    expect(reports.find((r) => r.sourceSlug === 'cfac-dashboard-2026')?.tabs[0].sections[0].name).toBe('Year to date')
     expect(reports.find((r) => r.sourceSlug === 'education-sheet')?.tabs[0].name).toBe('Metrics')
   })
 })

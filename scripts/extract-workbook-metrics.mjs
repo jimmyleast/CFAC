@@ -154,6 +154,28 @@ function addPoint(rows, source, metricKey, label, value, period, dimension = {},
   })
 }
 
+function addDashboardPoint(rows, source, prefix, sheetName, section, label, value, period = { label: '2026', start: '2026-01-01' }, unit = 'count', extra = {}) {
+  const cleanLabel = text(label)
+  if (!cleanLabel || isUnsafeLabel(cleanLabel)) return
+  addPoint(
+    rows,
+    source,
+    `${prefix}_${slugify(sheetName)}_${slugify(section)}_${slugify(cleanLabel)}`,
+    cleanLabel.slice(0, 120),
+    value,
+    period,
+    { workbook_sheet: sheetName, dashboard_section: section, dashboard_row: cleanLabel.slice(0, 120), ...extra },
+    unit,
+  )
+}
+
+function extractPairBlock(rows, source, prefix, sheetName, sheetRows, section, startRow, endRow, labelCol, valueCol, period, unit = 'count') {
+  for (let r = startRow; r <= endRow; r++) {
+    const row = sheetRows[r] || []
+    addDashboardPoint(rows, source, prefix, sheetName, section, row[labelCol], row[valueCol], period, unit)
+  }
+}
+
 function bucket(value, fallback = 'Unspecified') {
   const s = text(value)
   return (s || fallback).slice(0, 80)
@@ -262,6 +284,97 @@ function extractDashboardTables(workbook, source, sheetNames, prefix) {
       }
     }
   }
+  return out
+}
+
+function extractFinancialHealthDashboard(workbook) {
+  const out = []
+  const sheetName = 'Financial Health'
+  const rows = readSheet(workbook, sheetName)
+  const monthColumns = [
+    [3, 'JANUARY'], [4, 'FEBRUARY'], [5, 'MARCH'], [6, 'QTR 1'],
+    [7, 'APRIL'], [8, 'MAY'], [9, 'JUNE'], [10, 'QTR 2'],
+    [11, 'JULY'], [12, 'AUGUST'], [13, 'SEPTEMBER'], [14, 'QTR 3'],
+    [15, 'OCTOBER'], [16, 'NOVEMBER'], [17, 'DECEMBER'], [18, 'QTR 4'],
+  ]
+
+  for (const r of [2, 3, 4]) {
+    for (const [colIndex, header] of monthColumns) {
+      addDashboardPoint(out, SOURCES.cfacDashboard, 'cfac_financial_health', sheetName, 'Finance', rows[r]?.[1], rows[r]?.[colIndex], periodFromHeader(header), rows[r]?.[1] === 'Months of Reserves' ? 'months' : 'usd')
+    }
+  }
+  for (const r of [6, 7, 8, 9, 10, 11, 12, 13]) {
+    for (const [colIndex, header] of monthColumns) {
+      const label = rows[r]?.[1]
+      const unit = /rate/i.test(text(label)) ? 'percent' : (/donors/i.test(text(label)) ? 'count' : 'usd')
+      addDashboardPoint(out, SOURCES.cfacDashboard, 'cfac_financial_health', sheetName, 'Fund Development', label, rows[r]?.[colIndex], periodFromHeader(header), unit)
+    }
+  }
+  for (const r of [15, 16, 17, 18, 19, 20, 21, 22, 23]) {
+    for (const colIndex of [3, 4, 5, 6]) {
+      const header = rows[14]?.[colIndex]
+      if (!text(header)) continue
+      const label = rows[r]?.[1]
+      const unit = /rate/i.test(text(label)) ? 'percent' : (/donors/i.test(text(label)) ? 'count' : 'usd')
+      addDashboardPoint(out, SOURCES.cfacDashboard, 'cfac_financial_health', sheetName, 'Quarter Summary', label, rows[r]?.[colIndex], periodFromHeader(header), unit)
+    }
+  }
+  return out
+}
+
+function extractCarpYtdDashboard(workbook) {
+  const out = []
+  const sheetName = 'YTD Dashboard'
+  const rows = readSheet(workbook, sheetName)
+  const period = { label: '2026', start: '2026-01-01' }
+
+  extractPairBlock(out, SOURCES.carpDashboard, 'carp_ytd', sheetName, rows, 'Inquiries', 2, 12, 8, 9, period)
+  extractPairBlock(out, SOURCES.carpDashboard, 'carp_ytd', sheetName, rows, 'Inquiry Reason And Advocacy', 2, 14, 10, 11, period)
+  extractPairBlock(out, SOURCES.carpDashboard, 'carp_ytd', sheetName, rows, 'Referral', 3, 25, 13, 14, period)
+  extractPairBlock(out, SOURCES.carpDashboard, 'carp_ytd', sheetName, rows, 'Referred By', 3, 25, 15, 16, period)
+  extractPairBlock(out, SOURCES.carpDashboard, 'carp_ytd', sheetName, rows, 'Special Considerations', 3, 18, 17, 18, period)
+  extractPairBlock(out, SOURCES.carpDashboard, 'carp_ytd', sheetName, rows, 'Client Demographics', 3, 25, 20, 21, period)
+  extractPairBlock(out, SOURCES.carpDashboard, 'carp_ytd', sheetName, rows, 'Client Age', 3, 16, 22, 23, period)
+  extractPairBlock(out, SOURCES.carpDashboard, 'carp_ytd', sheetName, rows, 'Services', 20, 35, 25, 26, period)
+
+  const staffingColumns = [
+    ['Case Count', 2],
+    ['Household Count', 3],
+    ['Total People', 4],
+    ['Weighted Caseload', 5],
+  ]
+  for (let r = 19; r <= 29; r++) {
+    const advocate = text(rows[r]?.[1])
+    if (!advocate) continue
+    for (const [metric, colIndex] of staffingColumns) {
+      addDashboardPoint(out, SOURCES.carpDashboard, 'carp_ytd', sheetName, 'Staffing', `${advocate} - ${metric}`, rows[r]?.[colIndex], period)
+    }
+  }
+  for (let r = 32; r <= 36; r++) {
+    const interviewer = text(rows[r]?.[1])
+    if (!interviewer) continue
+    addDashboardPoint(out, SOURCES.carpDashboard, 'carp_ytd', sheetName, 'Forensic Interviewers', `${interviewer} - Case Count`, rows[r]?.[2], period)
+  }
+  return out
+}
+
+function extractResidentialDashboard(workbook) {
+  const out = []
+  const sheetName = 'Dashboard'
+  const rows = readSheet(workbook, sheetName)
+  const period = { label: '2026', start: '2026-01-01' }
+
+  extractPairBlock(out, SOURCES.residentialDashboard, 'residential_dashboard_block', sheetName, rows, 'Residential Inquiries', 2, 19, 0, 1, period)
+  extractPairBlock(out, SOURCES.residentialDashboard, 'residential_dashboard_block', sheetName, rows, 'Residential Inquiry Reasons', 2, 19, 2, 3, period)
+  extractPairBlock(out, SOURCES.residentialDashboard, 'residential_dashboard_block', sheetName, rows, 'Residential Clients', 2, 31, 5, 6, period)
+  extractPairBlock(out, SOURCES.residentialDashboard, 'residential_dashboard_block', sheetName, rows, 'Residential Client Details', 2, 31, 7, 8, period)
+  extractPairBlock(out, SOURCES.residentialDashboard, 'residential_dashboard_block', sheetName, rows, 'Ongoing Advocacy', 2, 11, 10, 11, period)
+  extractPairBlock(out, SOURCES.residentialDashboard, 'residential_dashboard_block', sheetName, rows, 'Ongoing Advocacy Details', 2, 11, 12, 13, period)
+  extractPairBlock(out, SOURCES.residentialDashboard, 'residential_dashboard_block', sheetName, rows, 'Culinary Program', 2, 11, 15, 16, period)
+  extractPairBlock(out, SOURCES.residentialDashboard, 'residential_dashboard_block', sheetName, rows, 'Culinary Program Details', 2, 11, 17, 18, period)
+  extractPairBlock(out, SOURCES.residentialDashboard, 'residential_dashboard_block', sheetName, rows, 'Youth Empowerment', 2, 11, 20, 21, period)
+  extractPairBlock(out, SOURCES.residentialDashboard, 'residential_dashboard_block', sheetName, rows, 'Youth Empowerment Details', 2, 11, 22, 23, period)
+  extractPairBlock(out, SOURCES.residentialDashboard, 'residential_dashboard_block', sheetName, rows, 'Youth Empowerment Support', 2, 11, 24, 25, period)
   return out
 }
 
@@ -513,10 +626,19 @@ const skippedRawTabs = [
 skipped.push(...skippedRawTabs)
 
 const extractors = [
-  ['CFAC Dashboard_2026.xlsx', (wb) => extractDashboardTables(wb, SOURCES.cfacDashboard, ['Reach', 'Organizational Impact', 'Financial Health', 'Exception Report'], 'cfac_dashboard')],
-  ['CARP_2026.xlsx', (wb) => extractDashboardTables(wb, SOURCES.carpDashboard, ['PULSE CHECK', 'YTD Dashboard'], 'carp_dashboard')],
+  ['CFAC Dashboard_2026.xlsx', (wb) => [
+    ...extractFinancialHealthDashboard(wb),
+    ...extractDashboardTables(wb, SOURCES.cfacDashboard, ['Reach', 'Organizational Impact', 'Financial Health', 'Exception Report'], 'cfac_dashboard'),
+  ]],
+  ['CARP_2026.xlsx', (wb) => [
+    ...extractCarpYtdDashboard(wb),
+    ...extractDashboardTables(wb, SOURCES.carpDashboard, ['PULSE CHECK', 'YTD Dashboard'], 'carp_dashboard'),
+  ]],
   ['Mental Health_2026.xlsx', (wb) => extractDashboardTables(wb, SOURCES.mentalHealthDashboard, ['PULSE CHECK', 'Dashboard'], 'mental_health_dashboard')],
-  ['Residential_2026.xlsx', (wb) => extractDashboardTables(wb, SOURCES.residentialDashboard, ['Dashboard', 'PULSE CHECK'], 'residential_dashboard')],
+  ['Residential_2026.xlsx', (wb) => [
+    ...extractResidentialDashboard(wb),
+    ...extractDashboardTables(wb, SOURCES.residentialDashboard, ['Dashboard', 'PULSE CHECK'], 'residential_dashboard'),
+  ]],
   ['Education_2026.xlsx', (wb) => [
     ...extractEducationDashboard(wb),
     ...extractEducation(wb),

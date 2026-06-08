@@ -15,11 +15,18 @@ export type WorkbookTabMetric = {
   period: string | null
   value: number
   unit: string | null
+  section: string | null
+}
+
+export type WorkbookTabSection = {
+  name: string
+  metrics: WorkbookTabMetric[]
 }
 
 export type WorkbookTab = {
   name: string
   metrics: WorkbookTabMetric[]
+  sections: WorkbookTabSection[]
 }
 
 export type WorkbookReport = {
@@ -56,7 +63,7 @@ export function groupWorkbookReports(rows: WorkbookMetricRow[]): WorkbookReport[
     const name = tabName(row)
     let tab = report.tabs.find((t) => t.name === name)
     if (!tab) {
-      tab = { name, metrics: [] }
+      tab = { name, metrics: [], sections: [] }
       report.tabs.push(tab)
     }
     const value = numberValue(row.value)
@@ -67,6 +74,7 @@ export function groupWorkbookReports(rows: WorkbookMetricRow[]): WorkbookReport[
       period: row.period_label,
       value,
       unit: row.unit,
+      section: typeof row.dimension?.dashboard_section === 'string' ? row.dimension.dashboard_section : null,
     })
   }
 
@@ -77,6 +85,15 @@ export function groupWorkbookReports(rows: WorkbookMetricRow[]): WorkbookReport[
         .map((tab) => ({
           ...tab,
           metrics: tab.metrics.sort((a, b) => (a.period || '').localeCompare(b.period || '') || a.label.localeCompare(b.label)),
+          sections: Array.from(
+            tab.metrics.reduce((acc, metric) => {
+              const section = metric.section || 'Metrics'
+              const group = acc.get(section) || []
+              group.push(metric)
+              acc.set(section, group)
+              return acc
+            }, new Map<string, WorkbookTabMetric[]>()).entries(),
+          ).map(([name, metrics]) => ({ name, metrics })).sort((a, b) => a.name.localeCompare(b.name)),
         }))
         .sort((a, b) => a.name.localeCompare(b.name)),
     }))
