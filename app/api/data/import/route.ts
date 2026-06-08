@@ -3,6 +3,8 @@ import * as XLSX from 'xlsx'
 import { getAdminClient, checkIsAdmin } from '@/lib/admin'
 import { getRequestAuth } from '@/lib/auth/requestUser'
 import { redactPHI } from '@/lib/compliance/phi'
+import { importWithSourceProfile, slugifyKey, toNum } from '@/lib/data/profileImport'
+import { profileForSourceSlug } from '@/lib/data/sourceProfiles'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -11,15 +13,7 @@ const MAX_UPLOAD_BYTES = 10 * 1024 * 1024 // 10 MB
 const MAX_DATA_ROWS = 50_000
 const ALLOWED_EXT = ['.xlsx', '.xls', '.csv']
 
-function slugifyKey(h: string) {
-  return h.toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
-}
 const PERIOD_NAMES = ['year', 'month', 'date', 'period', 'quarter', 'week']
-function toNum(v: any): number | null {
-  if (v === null || v === undefined || v === '') return null
-  const n = Number(String(v).replace(/[$,%\s]/g, ''))
-  return isNaN(n) ? null : n
-}
 
 export async function POST(req: Request) {
   const { user, mfaRequired } = await getRequestAuth(req)
@@ -49,7 +43,7 @@ export async function POST(req: Request) {
   }
 
   const admin = getAdminClient()
-  const { data: src, error: srcErr } = await admin.from('data_sources').select('id').eq('slug', sourceSlug).maybeSingle()
+  const { data: src, error: srcErr } = await admin.from('data_sources').select('id, source_profile_key').eq('slug', sourceSlug).maybeSingle()
   if (srcErr) return NextResponse.json({ error: srcErr.message }, { status: 500 })
   if (!src) return NextResponse.json({ error: `Unknown source: ${sourceSlug}` }, { status: 404 })
   const sourceId = src.id
@@ -83,6 +77,32 @@ export async function POST(req: Request) {
   const batchId = crypto.randomUUID()
   const metrics: any[] = []
   const importRows: any[] = []
+  const profileKey = src.source_profile_key || profileForSourceSlug(sourceSlug)?.key || null
+
+  const profiled = importWithSourceProfile({
+    profileKey,
+    sourceId,
+    importedBy: user.id,
+    batchId,
+    header,
+    dataRows,
+  })
+  if (profiled.handled) {
+    if (profiled.metrics.length) {
+      const { error } = await admin.from('metrics').insert(profiled.metrics)
+      if (error) return NextResponse.json({ error: 'metrics insert failed: ' + error.message }, { status: 500 })
+    }
+    if (profiled.importRows.length) await admin.from('import_rows').insert(profiled.importRows)
+    await admin.from('data_sources').update({ last_imported_at: new Date().toISOString() }).eq('id', sourceId)
+
+    return NextResponse.json({
+      ok: true, batchId,
+      profileKey,
+      rowsParsed: dataRows.length, metricsInserted: profiled.metrics.length,
+      metricKeys: profiled.metricKeys,
+      periodColumn: null,
+    })
+  }
 
   dataRows.forEach((r, idx) => {
     const periodLabel = periodIdx >= 0 ? String(r[periodIdx] ?? '').trim() : (periodLabelInput || '')

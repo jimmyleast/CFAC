@@ -63,19 +63,19 @@ beforeEach(() => {
 
 describe('phi-key-audit — fail closed on DB-key-sealed PHI ciphertext', () => {
   it('THROWS when a PHI-gated provider holds ciphertext and no env key is in force (DB-key-sealed)', async () => {
-    const admin = adminWith([{ provider: 'microsoft', access_token_enc: 'v1.aa.bb.cc' }])
+    const admin = adminWith([{ provider: 'microsoft_mail_intake', access_token_enc: 'v1.aa.bb.cc' }])
     await expect(assertNoDbKeySealedPhiCiphertext(admin)).rejects.toThrow(/FAIL CLOSED/)
-    await expect(assertNoDbKeySealedPhiCiphertext(admin)).rejects.toThrow(/microsoft \(access_token_enc\)/)
+    await expect(assertNoDbKeySealedPhiCiphertext(admin)).rejects.toThrow(/microsoft_mail_intake \(access_token_enc\)/)
   })
 
   it('emits a durable connector.phi_audit.violation event (provider + columns only) before throwing', async () => {
-    const admin = adminWith([{ provider: 'microsoft', access_token_enc: 'v1.aa.bb.cc' }])
+    const admin = adminWith([{ provider: 'microsoft_mail_intake', access_token_enc: 'v1.aa.bb.cc' }])
     await expect(assertNoDbKeySealedPhiCiphertext(admin)).rejects.toThrow(/FAIL CLOSED/)
     expect(mEmit).toHaveBeenCalledTimes(1)
     const arg = mEmit.mock.calls[0][0]
     expect(arg.eventName).toBe('connector.phi_audit.violation')
     expect(arg.category).toBe('error')
-    expect(arg.metadata.providers).toEqual(['microsoft'])
+    expect(arg.metadata.providers).toEqual(['microsoft_mail_intake'])
     // never any ciphertext/plaintext in the event
     expect(JSON.stringify(arg)).not.toContain('v1.aa.bb.cc')
   })
@@ -123,29 +123,29 @@ describe('phi-key-audit — fail closed on DB-key-sealed PHI ciphertext', () => 
     const envKey = crypto.randomBytes(32).toString('base64')
     process.env.CONNECTOR_ENC_KEY = envKey
     const dbKey = crypto.randomBytes(32).toString('base64')
-    const admin = adminWith([{ provider: 'microsoft', access_token_enc: sealWith(envKey, 'a'), refresh_token_enc: sealWith(dbKey, 'r') }])
+    const admin = adminWith([{ provider: 'microsoft_mail_intake', access_token_enc: sealWith(envKey, 'a'), refresh_token_enc: sealWith(dbKey, 'r') }])
     const findings = await findPhiConnectorCiphertext(admin)
-    expect(findings).toEqual([{ provider: 'microsoft', columns: ['access_token_enc', 'refresh_token_enc'], envKeyDecryptable: false }])
+    expect(findings).toEqual([{ provider: 'microsoft_mail_intake', columns: ['access_token_enc', 'refresh_token_enc'], envKeyDecryptable: false }])
     await expect(assertNoDbKeySealedPhiCiphertext(admin)).rejects.toThrow(/FAIL CLOSED/)
   })
 
   it('reports MULTIPLE violators in the detail string and event, separated by "; "', async () => {
     const admin = adminWith([
-      { provider: 'microsoft', access_token_enc: 'v1.a.b.c' },
+      { provider: 'microsoft_mail_intake', access_token_enc: 'v1.a.b.c' },
       { provider: 'docusign', refresh_token_enc: 'v1.d.e.f' },
     ])
-    await expect(assertNoDbKeySealedPhiCiphertext(admin)).rejects.toThrow(/microsoft \(access_token_enc\); docusign \(refresh_token_enc\)/)
+    await expect(assertNoDbKeySealedPhiCiphertext(admin)).rejects.toThrow(/microsoft_mail_intake \(access_token_enc\); docusign \(refresh_token_enc\)/)
     const arg = mEmit.mock.calls[0][0]
-    expect(arg.metadata.providers).toEqual(['microsoft', 'docusign'])
+    expect(arg.metadata.providers).toEqual(['microsoft_mail_intake', 'docusign'])
     expect(arg.metadata.findings).toEqual([
-      { provider: 'microsoft', columns: ['access_token_enc'] },
+      { provider: 'microsoft_mail_intake', columns: ['access_token_enc'] },
       { provider: 'docusign', columns: ['refresh_token_enc'] },
     ])
   })
 
   it('a telemetry failure never masks the fail-closed throw', async () => {
     mEmit.mockRejectedValueOnce(new Error('telemetry down'))
-    const admin = adminWith([{ provider: 'microsoft', access_token_enc: 'v1.a.b.c' }])
+    const admin = adminWith([{ provider: 'microsoft_mail_intake', access_token_enc: 'v1.a.b.c' }])
     await expect(assertNoDbKeySealedPhiCiphertext(admin)).rejects.toThrow(/FAIL CLOSED/)
   })
 
@@ -162,7 +162,7 @@ describe('phi-key-audit — fail closed on DB-key-sealed PHI ciphertext', () => 
 
   it('retries a transient query error with bounded backoff, then evaluates once recovered', async () => {
     // First two attempts error; third returns a DB-sealed violation → still fails closed.
-    const admin = adminWith([{ provider: 'microsoft', access_token_enc: 'v1.a.b.c' }], { errorsBeforeSuccess: 2 })
+    const admin = adminWith([{ provider: 'microsoft_mail_intake', access_token_enc: 'v1.a.b.c' }], { errorsBeforeSuccess: 2 })
     await expect(assertNoDbKeySealedPhiCiphertext(admin, noSleep)).rejects.toThrow(/FAIL CLOSED/)
   })
 

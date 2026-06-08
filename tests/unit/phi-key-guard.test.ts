@@ -51,7 +51,7 @@ beforeEach(() => {
 describe('phiKeyBlocked', () => {
   it('blocks a phiGated provider when the gate is open but only the DB key exists', () => {
     process.env.PHI_GATE_READY = 'true' // no env key
-    expect(phiKeyBlocked('microsoft')).toBe(true)
+    expect(phiKeyBlocked('microsoft_mail_intake')).toBe(true)
     expect(phiKeyBlocked('qualtrics')).toBe(true)
     expect(phiKeyBlocked('docusign')).toBe(true)
   })
@@ -59,12 +59,12 @@ describe('phiKeyBlocked', () => {
   it('does NOT block once the strong env key is in force', () => {
     process.env.PHI_GATE_READY = 'true'
     process.env.CONNECTOR_ENC_KEY = envKey()
-    expect(phiKeyBlocked('microsoft')).toBe(false)
+    expect(phiKeyBlocked('microsoft_mail_intake')).toBe(false)
   })
 
   it('does NOT block before the gate is open (phi_gate handles that case)', () => {
     delete process.env.PHI_GATE_READY // gate closed
-    expect(phiKeyBlocked('microsoft')).toBe(false)
+    expect(phiKeyBlocked('microsoft_mail_intake')).toBe(false)
   })
 
   it('never blocks a non-PHI provider — the DB key is an accepted tradeoff for them', () => {
@@ -76,10 +76,10 @@ describe('phiKeyBlocked', () => {
 
   it('blockedReason surfaces phi_key for the UI', () => {
     process.env.PHI_GATE_READY = 'true'
-    expect(blockedReason('microsoft')).toBe('phi_key')
+    expect(blockedReason('microsoft_mail_intake')).toBe('phi_key')
     process.env.CONNECTOR_ENC_KEY = envKey()
     process.env.MS_CLIENT_ID = 'x'; process.env.MS_CLIENT_SECRET = 'y'
-    expect(blockedReason('microsoft')).toBe(null) // gate open + env key + creds → connectable
+    expect(blockedReason('microsoft_mail_intake')).toBe(null) // gate open + env key + creds -> connectable
   })
 })
 

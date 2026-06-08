@@ -58,7 +58,7 @@ describe('POST /api/connect-invites — eligibility', () => {
     expect((await POST(req({ provider: 'quickbooks' }))).status).toBe(400)
   })
   it('400 for a PHI-bearing provider', async () => {
-    expect((await POST(req({ provider: 'microsoft' }))).status).toBe(400)
+    expect((await POST(req({ provider: 'microsoft_sharepoint' }))).status).toBe(400)
   })
   it('creates an invite link for an api-key, non-PHI provider', async () => {
     const res = await POST(req({ provider: 'bloomerang', label: 'Dir of Development' }))

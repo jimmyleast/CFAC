@@ -25,8 +25,9 @@ type Provider = {
 
 type FileSource = {
   id: string; name: string; slug: string; kind: string
-  lastImportedAt: string | null; metricCount: number; issueCount: number
+  profileKey: string | null; lastImportedAt: string | null; metricCount: number; issueCount: number
 }
+type SourceProfile = { key: string; name: string; mode: string; description: string }
 
 async function authFetch(url: string, opts: RequestInit = {}) {
   const supabase = createClient()
@@ -46,8 +47,10 @@ function Inner() {
   const [keyDraft, setKeyDraft] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState<string | null>(null)
   const [sources, setSources] = useState<FileSource[]>([])
+  const [profiles, setProfiles] = useState<SourceProfile[]>([])
   const [newName, setNewName] = useState('')
   const [newKind, setNewKind] = useState('spreadsheet')
+  const [newProfileKey, setNewProfileKey] = useState('')
   const [creating, setCreating] = useState(false)
   const [inviteLink, setInviteLink] = useState<{ provider: string; link: string } | null>(null)
 
@@ -63,7 +66,7 @@ function Inner() {
       if (!cRes.ok) throw new Error(`HTTP ${cRes.status}`)
       const d = await cRes.json()
       setProviders(d.providers || []); setEncryptionReady(d.encryptionReady !== false)
-      if (sRes?.ok) { const sd = await sRes.json(); setSources(sd.sources || []) }
+      if (sRes?.ok) { const sd = await sRes.json(); setSources(sd.sources || []); setProfiles(sd.profiles || []) }
       if (roleRes?.ok) { const r = await roleRes.json(); setIsAdmin(r.role === 'admin') }
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)) } finally { setLoading(false) }
   }
@@ -74,9 +77,9 @@ function Inner() {
     if (!name) return
     setCreating(true)
     try {
-      const res = await authFetch('/api/data/sources', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, kind: newKind }) })
+      const res = await authFetch('/api/data/sources', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, kind: newKind, profileKey: newProfileKey || undefined }) })
       if (!res.ok) { const e = await res.json().catch(() => ({})); alert(e.error || `Failed (${res.status})`) }
-      else { setNewName(''); await load() }
+      else { setNewName(''); setNewProfileKey(''); await load() }
     } finally { setCreating(false) }
   }
 
@@ -239,6 +242,10 @@ function Inner() {
                 <option value="manual">Manual</option>
                 <option value="system">System export</option>
               </select>
+              <select value={newProfileKey} onChange={(e) => setNewProfileKey(e.target.value)} style={{ background: '#0D0D0F', border: `1px solid ${LINE}`, borderRadius: 8, color: TEXT, fontSize: 13, padding: '8px 10px', maxWidth: 240 }}>
+                <option value="">No profile</option>
+                {profiles.map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
+              </select>
               <button disabled={creating || !newName.trim()} onClick={createSource} style={{ background: GOLD, color: '#0D0D0F', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{creating ? 'Adding…' : 'Add source'}</button>
             </div>
           )}
@@ -249,6 +256,7 @@ function Inner() {
                 <div style={{ minWidth: 0 }}>
                   <span style={{ fontSize: 14, fontWeight: 600, color: TEXT }}>{s.name}</span>
                   <span style={{ marginLeft: 8, fontSize: 11, color: TEXT4, textTransform: 'capitalize' }}>{s.kind}</span>
+                  {s.profileKey && <span style={{ marginLeft: 8, fontSize: 10, color: OK, border: `1px solid ${OK}55`, borderRadius: 4, padding: '1px 6px' }}>profiled</span>}
                   <div style={{ fontSize: 11.5, color: TEXT2, marginTop: 3 }}>
                     {s.metricCount} metrics · {s.lastImportedAt ? `updated ${new Date(s.lastImportedAt).toLocaleDateString()}` : 'no data yet'}
                     {s.issueCount > 0 && <span style={{ color: WARN }}> · {s.issueCount} issues</span>}

@@ -28,7 +28,8 @@ const labelStyle: React.CSSProperties = { display: 'block', fontSize: 12, color:
 
 export default function DataImportPage() {
   const router = useRouter()
-  const [sources, setSources] = useState<{ slug: string; name: string }[]>([])
+  const [sources, setSources] = useState<{ slug: string; name: string; profileKey: string | null }[]>([])
+  const [profiles, setProfiles] = useState<{ key: string; name: string; mode: string; description: string }[]>([])
   const [sourceSlug, setSourceSlug] = useState('')
   const [periodColumn, setPeriodColumn] = useState('')
   const [periodLabel, setPeriodLabel] = useState('')
@@ -45,8 +46,9 @@ export default function DataImportPage() {
       const res = await fetch('/api/data/sources', { headers: { Authorization: `Bearer ${await token()}` } })
       if (res.ok) {
         const d = await res.json()
-        const list = (d.sources || []).map((s: any) => ({ slug: s.slug, name: s.name }))
+        const list = (d.sources || []).map((s: any) => ({ slug: s.slug, name: s.name, profileKey: s.profileKey || null }))
         setSources(list)
+        setProfiles(d.profiles || [])
         // Pre-select when arriving from the connect portal (?source=slug).
         const pre = new URLSearchParams(window.location.search).get('source')
         if (pre) setFromConnect(true)
@@ -76,6 +78,9 @@ export default function DataImportPage() {
     } catch (e: any) { setErr(String(e.message || e)) } finally { setBusy(false) }
   }
 
+  const activeSource = sources.find((s) => s.slug === sourceSlug) || null
+  const activeProfile = activeSource?.profileKey ? profiles.find((p) => p.key === activeSource.profileKey) : null
+
   return (
     <div style={{ maxWidth: 640, margin: '0 auto', padding: '40px 24px' }}>
       <button onClick={() => router.push('/admin/data')} style={{ background: 'none', border: 'none', color: TEXT2, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16 }}>
@@ -83,7 +88,7 @@ export default function DataImportPage() {
       </button>
       <h1 style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 28, color: TEXT, margin: '0 0 4px' }}>Import data</h1>
       <p style={{ color: TEXT2, fontSize: 13, margin: '0 0 24px', lineHeight: 1.5 }}>
-        Upload a spreadsheet (.xlsx) or CSV. Each numeric column becomes a metric; a Year/Month/Date column is used as the period.
+        Upload a spreadsheet (.xlsx) or CSV. Known CFAC files use their source profile; other aggregate files use the generic numeric-column importer.
       </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16, background: BG2, border: `1px solid ${LINE}`, borderRadius: 12, padding: 20 }}>
@@ -93,6 +98,11 @@ export default function DataImportPage() {
             <option value="">— select —</option>
             {sources.map(s => <option key={s.slug} value={s.slug} style={optionStyle}>{s.name}</option>)}
           </select>
+          {activeProfile && (
+            <div style={{ marginTop: 8, fontSize: 12, color: activeProfile.mode === 'aggregate_from_sensitive_rows' ? WARN : OK, lineHeight: 1.45 }}>
+              Profile: {activeProfile.name}. {activeProfile.description}
+            </div>
+          )}
         </div>
         <div>
           <label style={labelStyle}>File (.xlsx / .csv)</label>

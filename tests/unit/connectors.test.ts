@@ -47,22 +47,25 @@ describe('provider registry', () => {
     process.env.QBO_CLIENT_ID = 'x'; process.env.QBO_CLIENT_SECRET = 'y'
     expect(isConfigured('quickbooks')).toBe(true)
   })
-  it('PHI-gated Microsoft stays blocked until PHI_GATE_READY even with creds', () => {
+  it('PHI-gated Microsoft mail intake stays blocked until PHI_GATE_READY even with creds', () => {
     process.env.MS_CLIENT_ID = 'x'; process.env.MS_CLIENT_SECRET = 'y'
     delete process.env.PHI_GATE_READY
-    expect(isConfigured('microsoft')).toBe(false)
-    expect(blockedReason('microsoft')).toBe('phi_gate')
+    expect(isConfigured('microsoft_mail_intake')).toBe(false)
+    expect(blockedReason('microsoft_mail_intake')).toBe('phi_gate')
     process.env.PHI_GATE_READY = 'true'
-    expect(isConfigured('microsoft')).toBe(true)
+    expect(isConfigured('microsoft_mail_intake')).toBe(true)
     delete process.env.PHI_GATE_READY
   })
-  it('Microsoft no longer requests Mail.Read in the scaffolding scopes', () => {
-    expect(getProvider('microsoft')!.scopes).not.toContain('Mail.Read')
+  it('Microsoft SharePoint uses Sites.Selected and does not request Mail.Read', () => {
+    expect(getProvider('microsoft_sharepoint')!.scopes).toContain('Sites.Selected')
+    expect(getProvider('microsoft_sharepoint')!.scopes).not.toContain('Mail.Read')
   })
   it('marks PHI/BAA correctly (QuickBooks no BAA → non-PHI)', () => {
     expect(getProvider('quickbooks')!.phiAllowed).toBe(false)
-    expect(getProvider('microsoft')!.phiAllowed).toBe(true)
-    expect(Object.keys(PROVIDERS)).toContain('microsoft')
+    expect(getProvider('microsoft_sharepoint')!.phiAllowed).toBe(false)
+    expect(getProvider('microsoft_mail_intake')!.phiAllowed).toBe(true)
+    expect(Object.keys(PROVIDERS)).toContain('microsoft_sharepoint')
+    expect(Object.keys(PROVIDERS)).toContain('microsoft_mail_intake')
   })
 })
 

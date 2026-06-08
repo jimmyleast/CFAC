@@ -73,17 +73,26 @@ function msAuthority(): string {
 }
 
 export const PROVIDERS: Record<string, ProviderDef> = {
-  microsoft: {
-    id: 'microsoft',
-    name: 'Microsoft 365',
+  microsoft_sharepoint: {
+    id: 'microsoft_sharepoint',
+    name: 'Microsoft SharePoint Excel',
+    authKind: 'oauth2',
+    phiAllowed: false,
+    baa: 'yes',
+    description: 'Aggregate SharePoint/Excel reporting workbooks using Sites.Selected.',
+    scopes: ['offline_access', 'Sites.Selected'],
+    get authUrl() { return `${msAuthority()}/authorize` },
+    get tokenUrl() { return `${msAuthority()}/token` },
+  },
+  microsoft_mail_intake: {
+    id: 'microsoft_mail_intake',
+    name: 'Microsoft Mail Intake',
     authKind: 'oauth2',
     phiAllowed: true,
     baa: 'yes',
-    phiGated: true, // standing key to PHI — blocked until the §5 infra gate is met
-    description: 'SharePoint reporting spreadsheets, Outlook intake mailbox, Forms.',
-    // Aggregate-SharePoint read only for now. Mail.Read (the PHI intake mailbox)
-    // is added with the email-intake increment, behind the PHI gate.
-    scopes: ['offline_access', 'Files.Read.All', 'Sites.Read.All'],
+    phiGated: true,
+    description: 'Outlook intake mailbox (PHI - gated until HIPAA infrastructure is in place).',
+    scopes: ['offline_access', 'Mail.Read'],
     get authUrl() { return `${msAuthority()}/authorize` },
     get tokenUrl() { return `${msAuthority()}/token` },
   },
@@ -162,6 +171,8 @@ export function getProvider(id: string): ProviderDef | null {
 /** Env var names per provider (server-side only). */
 export function providerEnv(id: string): { clientId?: string; clientSecret?: string } {
   switch (id) {
+    case 'microsoft_sharepoint':
+    case 'microsoft_mail_intake':
     case 'microsoft': return { clientId: process.env.MS_CLIENT_ID, clientSecret: process.env.MS_CLIENT_SECRET }
     case 'quickbooks': return { clientId: process.env.QBO_CLIENT_ID, clientSecret: process.env.QBO_CLIENT_SECRET }
     default: return {}

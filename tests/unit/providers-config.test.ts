@@ -31,12 +31,23 @@ describe('connector enablement / gating', () => {
   })
 
   it('PHI providers stay gated regardless of authKind (gate closed)', () => {
-    // qualtrics is apikey+phiGated; docusign/microsoft are oauth2+phiGated.
-    for (const id of ['qualtrics', 'docusign', 'microsoft']) {
+    // qualtrics is apikey+phiGated; docusign/mail intake are oauth2+phiGated.
+    for (const id of ['qualtrics', 'docusign', 'microsoft_mail_intake']) {
       expect(getProvider(id)!.phiGated).toBe(true)
       expect(isConfigured(id)).toBe(false)
       expect(blockedReason(id)).toBe('phi_gate')
     }
+  })
+
+  it('SharePoint Excel is the non-PHI Microsoft wedge and Mail.Read stays gated separately', () => {
+    const sharepoint = getProvider('microsoft_sharepoint')!
+    const mail = getProvider('microsoft_mail_intake')!
+    expect(sharepoint.phiAllowed).toBe(false)
+    expect(sharepoint.phiGated).toBeFalsy()
+    expect(sharepoint.scopes).toEqual(['offline_access', 'Sites.Selected'])
+    expect(mail.phiAllowed).toBe(true)
+    expect(mail.phiGated).toBe(true)
+    expect(mail.scopes).toContain('Mail.Read')
   })
 
   it('setupHint never embeds a secret value (static help text only)', () => {

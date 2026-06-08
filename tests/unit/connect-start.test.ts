@@ -28,7 +28,7 @@ beforeEach(() => {
 describe('OAuth start — PHI key guard', () => {
   it('BLOCKS a phiGated provider (gate open, no env key) with 503 and never starts the handshake', async () => {
     process.env.PHI_GATE_READY = 'true' // gate open, but only the DB key would be available
-    const res = await start('microsoft')
+    const res = await start('microsoft_mail_intake')
     expect(res.status).toBe(503)
     expect(mAdmin).not.toHaveBeenCalled() // no oauth_states row written — no consent redirect
   })
@@ -42,7 +42,7 @@ describe('OAuth start — PHI key guard', () => {
         insert: async () => ({ error: null }),
       }),
     })
-    const res = await start('microsoft')
+    const res = await start('microsoft_mail_intake')
     expect(res.status).toBe(307) // redirect to the IdP consent page
     expect(res.headers.get('location') || '').toContain('login.microsoftonline.com')
   })

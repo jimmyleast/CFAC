@@ -66,7 +66,7 @@ describe('OAuth callback — state binding & replay defense', () => {
   })
 
   it('rejects a state for the wrong provider → bad_state', async () => {
-    mAdmin.mockReturnValue(adminWithState({ provider: 'microsoft', code_verifier: 'v', created_at: new Date().toISOString(), user_id: 'admin-A' }))
+    mAdmin.mockReturnValue(adminWithState({ provider: 'microsoft_sharepoint', code_verifier: 'v', created_at: new Date().toISOString(), user_id: 'admin-A' }))
     const res = await GET(req(), { params: { provider: 'quickbooks' } })
     expect(loc(res)).toContain('error=bad_state')
   })
@@ -74,7 +74,7 @@ describe('OAuth callback — state binding & replay defense', () => {
   it('BLOCKS a phiGated provider when the gate is open but the strong env key is missing → phi_key_required, no seal', async () => {
     delete process.env.CONNECTOR_ENC_KEY // only the DB fallback would be available
     process.env.PHI_GATE_READY = 'true'
-    const res = await GET(new Request('https://app/api/connect/microsoft/callback?code=abc&state=st1'), { params: { provider: 'microsoft' } })
+    const res = await GET(new Request('https://app/api/connect/microsoft_mail_intake/callback?code=abc&state=st1'), { params: { provider: 'microsoft_mail_intake' } })
     expect(loc(res)).toContain('error=phi_key_required')
     expect(mAdmin).not.toHaveBeenCalled() // refused before any DB access / token exchange / seal
     delete process.env.PHI_GATE_READY

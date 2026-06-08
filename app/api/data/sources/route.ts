@@ -3,6 +3,7 @@ import { getAdminClient } from '@/lib/admin'
 import { requireUserMfa, requireAdmin } from '@/lib/auth/aal'
 import { emitAppEvent } from '@/lib/telemetry/events'
 import { slugify } from '@/lib/util/slug'
+import { getSourceProfile, listSourceProfiles, profileForSourceSlug } from '@/lib/data/sourceProfiles'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,12 +16,13 @@ export async function POST(req: Request) {
   const gate = await requireAdmin(req)
   if ('response' in gate) return gate.response
 
-  const body = await req.json().catch(() => ({})) as { name?: string; kind?: string; componentSlug?: string; description?: string }
+  const body = await req.json().catch(() => ({})) as { name?: string; kind?: string; componentSlug?: string; description?: string; profileKey?: string }
   const name = String(body.name || '').trim().slice(0, 120)
   if (!name) return NextResponse.json({ error: 'name required' }, { status: 400 })
   const kind = KINDS.has(String(body.kind)) ? String(body.kind) : 'spreadsheet'
   const slug = slugify(name)
   if (!slug) return NextResponse.json({ error: 'name must contain letters or numbers' }, { status: 400 })
+  const profile = getSourceProfile(body.profileKey) || profileForSourceSlug(slug)
 
   const admin = getAdminClient()
   const { data: existing } = await admin.from('data_sources').select('id').eq('slug', slug).maybeSingle()
@@ -34,6 +36,7 @@ export async function POST(req: Request) {
 
   const { error } = await admin.from('data_sources').insert({
     name, slug, kind, description: String(body.description || '').slice(0, 500) || null, component_id: componentId,
+    source_profile_key: profile?.key ?? null,
   })
   if (error) {
     // Lost a concurrent create race → the unique(slug) constraint rejected it.
@@ -41,8 +44,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  await emitAppEvent({ eventName: 'source.created', category: 'system', userId: gate.user.id, route: '/api/data/sources', status: 'ok', metadata: { slug, kind } }).catch(() => {})
-  return NextResponse.json({ ok: true, slug })
+  await emitAppEvent({ eventName: 'source.created', category: 'system', userId: gate.user.id, route: '/api/data/sources', status: 'ok', metadata: { slug, kind, profileKey: profile?.key ?? null } }).catch(() => {})
+  return NextResponse.json({ ok: true, slug, profileKey: profile?.key ?? null })
 }
 
 export async function GET(req: Request) {
@@ -54,7 +57,7 @@ export async function GET(req: Request) {
 
   let query = admin
     .from('data_sources')
-    .select('id, name, slug, kind, description, last_imported_at, components(name, slug)')
+    .select('id, name, slug, kind, description, source_profile_key, last_imported_at, components(name, slug)')
     .order('name')
   if (componentSlug) {
     const { data: comp } = await admin.from('components').select('id').eq('slug', componentSlug).maybeSingle()
@@ -80,11 +83,12 @@ export async function GET(req: Request) {
     slug: s.slug,
     kind: s.kind,
     description: s.description,
+    profileKey: s.source_profile_key || profileForSourceSlug(s.slug)?.key || null,
     component: s.components?.name || null,
     lastImportedAt: s.last_imported_at,
     metricCount: metricCount[s.id] || 0,
     issueCount: issueCount[s.id] || 0,
   }))
 
-  return NextResponse.json({ sources: out })
+  return NextResponse.json({ sources: out, profiles: listSourceProfiles().map((p) => ({ key: p.key, name: p.name, mode: p.mode, description: p.description })) })
 }

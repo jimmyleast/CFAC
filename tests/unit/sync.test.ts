@@ -82,9 +82,9 @@ describe('runSync', () => {
     delete process.env.CONNECTOR_ENC_KEY // only the co-located DB key would be available
     process.env.PHI_GATE_READY = 'true'
     let pulled = false
-    const spy: Connector = { id: 'microsoft', pull: async () => { pulled = true; return [] } }
-    const conn = { provider: 'microsoft', status: 'connected', auth_kind: 'oauth2', access_token_enc: 'x', refresh_token_enc: 'y', token_expires_at: null }
-    const r = await runSync(adminMock({ conn, srcId: 'src1' }), 'microsoft', { microsoft: spy }, Date.now())
+    const spy: Connector = { id: 'microsoft_mail_intake', pull: async () => { pulled = true; return [] } }
+    const conn = { provider: 'microsoft_mail_intake', status: 'connected', auth_kind: 'oauth2', access_token_enc: 'x', refresh_token_enc: 'y', token_expires_at: null }
+    const r = await runSync(adminMock({ conn, srcId: 'src1' }), 'microsoft_mail_intake', { microsoft_mail_intake: spy }, Date.now())
     expect(r.ok).toBe(false)
     expect(r.error).toMatch(/CONNECTOR_ENC_KEY/)
     expect(pulled).toBe(false) // short-circuited before resolveCreds/pull → no token decrypt or re-seal
