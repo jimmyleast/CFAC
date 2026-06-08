@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 const GOLD = '#5BA3D9'
 const TEXT = '#F0EDE6'
 const TEXT2 = '#8A8680'
+const TEXT4 = '#555250'
 const LINE = '#2A2A2A'
 const BG2 = 'rgba(255,255,255,0.025)'
 const OK = '#7DD3C7'
@@ -23,12 +24,106 @@ const inputStyle: React.CSSProperties = {
   width: '100%', background: 'rgba(255,255,255,0.04)', border: `1px solid ${LINE}`,
   borderRadius: 8, padding: '10px 12px', color: TEXT, fontSize: 14, colorScheme: 'dark',
 }
-const optionStyle: React.CSSProperties = { background: '#141416', color: TEXT }
 const labelStyle: React.CSSProperties = { display: 'block', fontSize: 12, color: TEXT2, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }
+type DataSourceOption = { slug: string; name: string; profileKey: string | null }
+
+function pickerRow(selected: boolean): React.CSSProperties {
+  return {
+    width: '100%',
+    border: 'none',
+    borderBottom: `1px solid ${LINE}`,
+    background: selected ? 'rgba(91,163,217,0.26)' : '#101113',
+    color: selected ? TEXT : TEXT2,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '10px 14px',
+    textAlign: 'left',
+    fontSize: 14,
+    cursor: 'pointer',
+  }
+}
+
+function DataSourcePicker({ sources, value, onChange }: { sources: DataSourceOption[]; value: string; onChange: (slug: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const active = sources.find((s) => s.slug === value) || null
+  const needle = query.trim().toLowerCase()
+  const filtered = needle ? sources.filter((s) => `${s.name} ${s.slug}`.toLowerCase().includes(needle)) : sources
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        onClick={() => setOpen(!open)}
+        style={{
+          ...inputStyle,
+          minHeight: 46,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+          cursor: 'pointer',
+          textAlign: 'left',
+        }}
+      >
+        <span style={{ color: active ? TEXT : TEXT2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {active ? active.name : '-- select --'}
+        </span>
+        <Icons.ChevronDown size={16} color={TEXT2} />
+      </button>
+      {open && (
+        <div
+          role="listbox"
+          style={{
+            position: 'absolute',
+            zIndex: 20,
+            left: 0,
+            right: 0,
+            top: 'calc(100% + 6px)',
+            background: '#101113',
+            border: `1px solid ${LINE}`,
+            borderRadius: 8,
+            boxShadow: '0 18px 40px rgba(0,0,0,0.45)',
+            overflow: 'hidden',
+          }}
+        >
+          <div style={{ padding: 8, borderBottom: `1px solid ${LINE}` }}>
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search sources"
+              style={{ ...inputStyle, padding: '8px 10px', fontSize: 13, background: '#08090A' }}
+            />
+          </div>
+          <div style={{ maxHeight: 310, overflowY: 'auto' }}>
+            <button type="button" role="option" aria-selected={!value} onClick={() => { onChange(''); setOpen(false); setQuery('') }} style={pickerRow(!value)}>
+              <span>-- select --</span>
+              {!value && <Icons.Check size={15} />}
+            </button>
+            {filtered.map((s) => {
+              const selected = s.slug === value
+              return (
+                <button key={s.slug} type="button" role="option" aria-selected={selected} onClick={() => { onChange(s.slug); setOpen(false); setQuery('') }} style={pickerRow(selected)}>
+                  <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+                  {s.profileKey && <span style={{ color: OK, fontSize: 10, marginLeft: 'auto' }}>profiled</span>}
+                  {selected && <Icons.Check size={15} />}
+                </button>
+              )
+            })}
+            {!filtered.length && <div style={{ color: TEXT4, fontSize: 13, padding: '12px 14px' }}>No matching sources.</div>}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function DataImportPage() {
   const router = useRouter()
-  const [sources, setSources] = useState<{ slug: string; name: string; profileKey: string | null }[]>([])
+  const [sources, setSources] = useState<DataSourceOption[]>([])
   const [profiles, setProfiles] = useState<{ key: string; name: string; mode: string; description: string }[]>([])
   const [sourceSlug, setSourceSlug] = useState('')
   const [periodColumn, setPeriodColumn] = useState('')
@@ -94,10 +189,7 @@ export default function DataImportPage() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16, background: BG2, border: `1px solid ${LINE}`, borderRadius: 12, padding: 20 }}>
         <div>
           <label style={labelStyle}>Data source</label>
-          <select value={sourceSlug} onChange={e => setSourceSlug(e.target.value)} style={inputStyle}>
-            <option value="">— select —</option>
-            {sources.map(s => <option key={s.slug} value={s.slug} style={optionStyle}>{s.name}</option>)}
-          </select>
+          <DataSourcePicker sources={sources} value={sourceSlug} onChange={setSourceSlug} />
           {activeProfile && (
             <div style={{ marginTop: 8, fontSize: 12, color: activeProfile.mode === 'aggregate_from_sensitive_rows' ? WARN : OK, lineHeight: 1.45 }}>
               Profile: {activeProfile.name}. {activeProfile.description}
