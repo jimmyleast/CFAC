@@ -207,12 +207,117 @@ function importFleet(input: ProfileImportInput): ProfileImportResult {
   return { handled: true, metrics, importRows, metricKeys: Array.from(new Set(metrics.map((m) => m.metric_key))) }
 }
 
+type AggregateProfileConfig = {
+  profileKey: string
+  dateAliases: string[]
+  rowCountMetric?: { key: string; label: string }
+  buckets?: { metricKey: string; label: string; dimension: string; aliases: string[] }[]
+  sums?: { metricKey: string; label: string; aliases: string[]; unit?: string }[]
+  safeRawBuckets?: { key: string; aliases: string[] }[]
+}
+
+const AGGREGATE_CONFIGS: AggregateProfileConfig[] = [
+  {
+    profileKey: 'education_training_aggregate',
+    dateAliases: ['Date', 'Training Date', 'Start time'],
+    rowCountMetric: { key: 'education_trainings_total', label: 'Education trainings' },
+    buckets: [
+      { metricKey: 'education_trainings_by_type', label: 'Education trainings by type', dimension: 'training_type', aliases: ['Training Type', 'Type', 'Topic'] },
+      { metricKey: 'education_trainings_by_audience', label: 'Education trainings by audience', dimension: 'audience', aliases: ['Audience', 'Audience Type'] },
+    ],
+    sums: [{ metricKey: 'education_attendees', label: 'Education attendees', aliases: ['Attendees', 'Attendance', 'People Trained', 'Reach'] }],
+    safeRawBuckets: [{ key: 'training_type', aliases: ['Training Type', 'Type', 'Topic'] }, { key: 'audience', aliases: ['Audience', 'Audience Type'] }],
+  },
+  {
+    profileKey: 'community_engagement_aggregate',
+    dateAliases: ['Date', 'Event Date', 'Tour Date', 'Start time'],
+    rowCountMetric: { key: 'community_events_total', label: 'Community events' },
+    buckets: [{ metricKey: 'community_events_by_type', label: 'Community events by type', dimension: 'event_type', aliases: ['Event Type', 'Type', 'Activity Type'] }],
+    sums: [
+      { metricKey: 'community_event_attendance', label: 'Community event attendance', aliases: ['Attendance', 'Attendees', 'Reach'] },
+      { metricKey: 'community_leads', label: 'Community leads', aliases: ['Leads', 'New Leads'] },
+      { metricKey: 'community_conversions', label: 'Community conversions', aliases: ['Conversions', 'Converted'] },
+    ],
+    safeRawBuckets: [{ key: 'event_type', aliases: ['Event Type', 'Type', 'Activity Type'] }],
+  },
+  {
+    profileKey: 'volunteers_aggregate',
+    dateAliases: ['Date', 'Volunteer Date', 'Start time'],
+    rowCountMetric: { key: 'volunteer_entries_total', label: 'Volunteer entries' },
+    buckets: [{ metricKey: 'volunteers_by_type', label: 'Volunteers by type', dimension: 'volunteer_type', aliases: ['Volunteer Type', 'Type', 'Group/Individual'] }],
+    sums: [
+      { metricKey: 'volunteers_total', label: 'Volunteers', aliases: ['Volunteers', 'Volunteer Count', 'Count'] },
+      { metricKey: 'volunteer_hours', label: 'Volunteer hours', aliases: ['Hours', 'Volunteer Hours'], unit: 'hours' },
+    ],
+    safeRawBuckets: [{ key: 'volunteer_type', aliases: ['Volunteer Type', 'Type', 'Group/Individual'] }],
+  },
+  {
+    profileKey: 'development_aggregate',
+    dateAliases: ['Date', 'Gift Date', 'Period'],
+    buckets: [{ metricKey: 'development_gifts_by_campaign', label: 'Development gifts by campaign', dimension: 'campaign', aliases: ['Campaign', 'Fund', 'Appeal'] }],
+    sums: [
+      { metricKey: 'development_gifts', label: 'Development gifts', aliases: ['Gifts', 'Gift Count', 'Donations'] },
+      { metricKey: 'development_revenue', label: 'Development revenue', aliases: ['Amount', 'Donation Amount', 'Revenue'], unit: 'usd' },
+      { metricKey: 'development_in_kind_value', label: 'Development in-kind value', aliases: ['In-Kind Value', 'In Kind Value'], unit: 'usd' },
+    ],
+    safeRawBuckets: [{ key: 'campaign', aliases: ['Campaign', 'Fund', 'Appeal'] }],
+  },
+  {
+    profileKey: 'finance_aggregate',
+    dateAliases: ['Period', 'Month', 'Date'],
+    sums: [
+      { metricKey: 'finance_income', label: 'Finance income', aliases: ['Income', 'Revenue'], unit: 'usd' },
+      { metricKey: 'finance_expenses', label: 'Finance expenses', aliases: ['Expenses', 'Expense'], unit: 'usd' },
+      { metricKey: 'finance_payroll', label: 'Finance payroll', aliases: ['Payroll'], unit: 'usd' },
+      { metricKey: 'finance_cash_balance', label: 'Finance cash balance', aliases: ['Cash Balance', 'Cash'], unit: 'usd' },
+    ],
+  },
+  {
+    profileKey: 'hr_aggregate',
+    dateAliases: ['Period', 'Month', 'Date'],
+    sums: [
+      { metricKey: 'hr_applicants', label: 'HR applicants', aliases: ['Applicants', 'Applications'] },
+      { metricKey: 'hr_phone_screenings', label: 'HR phone screenings', aliases: ['Phone Screenings', 'Screenings'] },
+      { metricKey: 'hr_open_positions', label: 'HR open positions', aliases: ['Open Positions', 'Open Roles'] },
+      { metricKey: 'hr_turnover', label: 'HR turnover', aliases: ['Turnover', 'Separations'] },
+      { metricKey: 'hr_retention_rate', label: 'HR retention rate', aliases: ['Retention Rate', 'Retention %'], unit: 'percent' },
+    ],
+  },
+]
+
+function importConfiguredAggregate(input: ProfileImportInput, config: AggregateProfileConfig): ProfileImportResult {
+  const dateIdx = idx(input.header, config.dateAliases)
+  const metrics: MetricRow[] = []
+  const importRows: ImportAuditRow[] = []
+
+  input.dataRows.forEach((row, rowIndex) => {
+    const period = monthFrom(cell(row, dateIdx))
+    const issues = period ? [] : ['missing usable period']
+    if (config.rowCountMetric) metrics.push(metric(input.sourceId, config.rowCountMetric.key, config.rowCountMetric.label, 1, period))
+    for (const b of config.buckets || []) {
+      const bucket = cleanBucket(cell(row, idx(input.header, b.aliases)))
+      aggregateBy(metrics, input.sourceId, period, b.metricKey, b.label, b.dimension, bucket)
+    }
+    for (const s of config.sums || []) {
+      const value = toNum(cell(row, idx(input.header, s.aliases)))
+      if (value !== null) metrics.push(metric(input.sourceId, s.metricKey, s.label, value, period, {}, s.unit || 'count'))
+    }
+    const safeRaw: Record<string, unknown> = { profile: config.profileKey, period: period?.label ?? null, stored_raw: 'aggregate_only' }
+    for (const b of config.safeRawBuckets || []) safeRaw[b.key] = cleanBucket(cell(row, idx(input.header, b.aliases)))
+    importRows.push(audit(input.sourceId, input.importedBy, input.batchId, rowIndex, safeRaw, issues))
+  })
+
+  return { handled: true, metrics, importRows, metricKeys: Array.from(new Set(metrics.map((m) => m.metric_key))) }
+}
+
 export function importWithSourceProfile(input: ProfileImportInput): ProfileImportResult {
   const profile = getSourceProfile(input.profileKey)
   if (!profile) return { handled: false, metrics: [], importRows: [], metricKeys: [] }
   if (profile.key === 'impact_history') return importImpact(profile, input)
   if (profile.key === 'maintenance_request_2026') return importMaintenance(input)
   if (profile.key === 'fleet_management_2026') return importFleet(input)
+  const aggregateConfig = AGGREGATE_CONFIGS.find((c) => c.profileKey === profile.key)
+  if (aggregateConfig) return importConfiguredAggregate(input, aggregateConfig)
   return { handled: false, metrics: [], importRows: [], metricKeys: [] }
 }
 

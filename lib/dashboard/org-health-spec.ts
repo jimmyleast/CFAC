@@ -58,9 +58,9 @@ export const ORG_HEALTH_SPEC: HealthSection[] = [
     blurb: 'Reach into the community — volunteers, training, outreach, and giving.',
     tiles: [
       { label: 'Reach', metricKey: 'reach', note: 'annual total' },
-      { label: 'Volunteers', metricKey: 'volunteers', note: 'annual total' },
-      { label: 'People Trained', metricKey: 'education', note: 'annual (education)' },
-      { label: 'Community Event Attendance', metricKey: 'community_events', note: 'annual total' },
+      { label: 'Volunteers', metricKey: 'volunteers_total', note: 'monthly aggregate' },
+      { label: 'People Trained', metricKey: 'education_attendees', note: 'monthly aggregate' },
+      { label: 'Community Event Attendance', metricKey: 'community_event_attendance', note: 'monthly aggregate' },
       { label: 'Tours', metricKey: 'tours', note: 'annual total' },
       { label: 'Active Donors', awaiting: 'bloomerang' },
       { label: 'PR Responses', awaiting: 'marketing' },
@@ -80,9 +80,9 @@ export const ORG_HEALTH_SPEC: HealthSection[] = [
     title: 'Finance & HR',
     blurb: 'Financial health and workforce — awaiting their source connections.',
     tiles: [
-      { label: 'Cash Flow', awaiting: 'quickbooks' },
-      { label: 'Retention Rate', awaiting: 'isolved' },
-      { label: 'Open Positions', awaiting: 'isolved' },
+      { label: 'Income', metricKey: 'finance_income', note: 'monthly aggregate' },
+      { label: 'Retention Rate', metricKey: 'hr_retention_rate', note: 'monthly %', aggregate: 'last' },
+      { label: 'Open Positions', metricKey: 'hr_open_positions', note: 'monthly aggregate' },
     ],
   },
 ]

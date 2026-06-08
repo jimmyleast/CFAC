@@ -26,13 +26,14 @@ describe('resolveHealthSections', () => {
     expect(acute.awaitingLabel).toBe(SOURCE_LABEL.collaborate)
   })
 
-  it('surfaces connector-awaiting tiles (Bloomerang/QuickBooks) without PHI gate', () => {
+  it('surfaces still-unbuilt connector tiles without PHI gate', () => {
     const sections = resolveHealthSections(ORG_HEALTH_SPEC, new Map())
     const donors = sections.flatMap((s) => s.tiles).find((t) => t.label === 'Active Donors')!
     expect(donors.awaitingLabel).toBe('Bloomerang')
     expect(donors.phiGated).toBe(false)
-    const cash = sections.flatMap((s) => s.tiles).find((t) => t.label === 'Cash Flow')!
-    expect(cash.awaitingLabel).toBe('QuickBooks')
+    const income = sections.flatMap((s) => s.tiles).find((t) => t.label === 'Income')!
+    expect(income.metricKey).toBe('finance_income')
+    expect(income.awaitingLabel).toBeNull()
   })
 
   it('HARD GATE: a phiGated tile never resolves live, even if a metric_key is wired onto it', () => {
@@ -69,8 +70,12 @@ describe('resolveHealthSections', () => {
     expect(keys).toContain('clients_served')
     expect(keys).toContain('medical')
     expect(keys).toContain('mental_health')
-    expect(keys).toContain('education')
-    expect(keys).toContain('community_events')
+    expect(keys).toContain('education_attendees')
+    expect(keys).toContain('community_event_attendance')
+    expect(keys).toContain('volunteers_total')
+    expect(keys).toContain('finance_income')
+    expect(keys).toContain('hr_retention_rate')
+    expect(keys).toContain('hr_open_positions')
     expect(keys).not.toContain('children_served')
     expect(keys).not.toContain('medical_exams')
     expect(keys).not.toContain('mental_health_sessions')
