@@ -159,6 +159,10 @@ function bucket(value, fallback = 'Unspecified') {
   return (s || fallback).slice(0, 80)
 }
 
+function sheetDimension(sheet, extra = {}) {
+  return { workbook_sheet: sheet, ...extra }
+}
+
 function rowsAfterHeader(workbook, sheetName, aliases) {
   const rows = readSheet(workbook, sheetName)
   const hit = findHeader(rows, aliases)
@@ -273,9 +277,9 @@ function extractEducation(workbook) {
     for (const row of dataRows) {
       const presentation = bucket(row[presentationIdx])
       const count = toNum(row[countIdx]) ?? (presentation !== 'Unspecified' ? 1 : 0)
-      addMetric(out, SOURCES.education, 'education_trainings_total', 'Education trainings', count, period)
-      addMetric(out, SOURCES.education, 'education_trainings_by_type', 'Education trainings by type', count, period, { training_type: presentation })
-      addMetric(out, SOURCES.education, 'education_attendees', 'Education attendees', row[peopleIdx], period)
+      addMetric(out, SOURCES.education, 'education_trainings_total', 'Education trainings', count, period, sheetDimension(sheet))
+      addMetric(out, SOURCES.education, 'education_trainings_by_type', 'Education trainings by type', count, period, sheetDimension(sheet, { training_type: presentation }))
+      addMetric(out, SOURCES.education, 'education_attendees', 'Education attendees', row[peopleIdx], period, sheetDimension(sheet))
     }
   }
   return out
@@ -296,10 +300,10 @@ function extractCommunity(workbook) {
       const eventType = sheet === 'Tours' ? 'Tour' : bucket(row[typeIdx])
       const attendance = toNum(row[attendIdx])
       if (!attendance && !text(row[dateIdx])) continue
-      addMetric(out, SOURCES.community, 'community_events_total', 'Community events', 1, period)
-      addMetric(out, SOURCES.community, 'community_events_by_type', 'Community events by type', 1, period, { event_type: eventType })
-      addMetric(out, SOURCES.community, 'community_event_attendance', 'Community event attendance', attendance, period)
-      addMetric(out, SOURCES.community, 'community_conversions', 'Community conversions', row[conversionIdx], period)
+      addMetric(out, SOURCES.community, 'community_events_total', 'Community events', 1, period, sheetDimension(sheet))
+      addMetric(out, SOURCES.community, 'community_events_by_type', 'Community events by type', 1, period, sheetDimension(sheet, { event_type: eventType }))
+      addMetric(out, SOURCES.community, 'community_event_attendance', 'Community event attendance', attendance, period, sheetDimension(sheet))
+      addMetric(out, SOURCES.community, 'community_conversions', 'Community conversions', row[conversionIdx], period, sheetDimension(sheet))
     }
   }
   const partnerships = rowsAfterHeader(workbook, 'Partnerships', ['Date Established', 'Partnership Type', 'Reach Value Assigned'])
@@ -311,8 +315,8 @@ function extractCommunity(workbook) {
       const period = periodFrom(row[dateIdx], '2026')
       const type = bucket(row[typeIdx], 'Partnership')
       if (!text(row[dateIdx]) && !toNum(row[reachIdx])) continue
-      addMetric(out, SOURCES.community, 'community_partnerships_total', 'Community partnerships', 1, period, { partnership_type: type })
-      addMetric(out, SOURCES.community, 'community_partnership_reach_value', 'Community partnership reach value', row[reachIdx], period, { partnership_type: type })
+      addMetric(out, SOURCES.community, 'community_partnerships_total', 'Community partnerships', 1, period, sheetDimension('Partnerships', { partnership_type: type }))
+      addMetric(out, SOURCES.community, 'community_partnership_reach_value', 'Community partnership reach value', row[reachIdx], period, sheetDimension('Partnerships', { partnership_type: type }))
     }
   }
   return out
@@ -337,10 +341,10 @@ function extractVolunteers(workbook) {
       const type = bucket(row[typeIdx], cfg.sheet)
       const volunteers = volunteerIdx >= 0 ? toNum(row[volunteerIdx]) : (text(row[dateIdx]) || toNum(row[hoursIdx]) ? 1 : 0)
       if (!volunteers && !toNum(row[hoursIdx])) continue
-      addMetric(out, SOURCES.volunteers, 'volunteer_entries_total', 'Volunteer entries', 1, period)
-      addMetric(out, SOURCES.volunteers, 'volunteers_total', 'Volunteers', volunteers, period)
-      addMetric(out, SOURCES.volunteers, 'volunteers_by_type', 'Volunteers by type', volunteers || 1, period, { volunteer_type: type })
-      addMetric(out, SOURCES.volunteers, 'volunteer_hours', 'Volunteer hours', row[hoursIdx], period, {}, 'hours')
+      addMetric(out, SOURCES.volunteers, 'volunteer_entries_total', 'Volunteer entries', 1, period, sheetDimension(cfg.sheet))
+      addMetric(out, SOURCES.volunteers, 'volunteers_total', 'Volunteers', volunteers, period, sheetDimension(cfg.sheet))
+      addMetric(out, SOURCES.volunteers, 'volunteers_by_type', 'Volunteers by type', volunteers || 1, period, sheetDimension(cfg.sheet, { volunteer_type: type }))
+      addMetric(out, SOURCES.volunteers, 'volunteer_hours', 'Volunteer hours', row[hoursIdx], period, sheetDimension(cfg.sheet), 'hours')
     }
   }
   return out
@@ -360,9 +364,9 @@ function extractXaya(workbook) {
       const type = bucket(row[typeIdx], 'Interaction')
       const people = toNum(row[peopleIdx])
       if (!people && !text(row[dateIdx])) continue
-      addMetric(out, SOURCES.xaya, 'xaya_interactions_total', 'Xaya interactions', 1, period, { service_type: type })
-      addMetric(out, SOURCES.xaya, 'xaya_people_total', 'Xaya people', people, period, { service_type: type })
-      if (/x|yes|true|1/i.test(text(row[uniqueIdx]))) addMetric(out, SOURCES.xaya, 'xaya_unique_interactions', 'Xaya unique interactions', 1, period, { service_type: type })
+      addMetric(out, SOURCES.xaya, 'xaya_interactions_total', 'Xaya interactions', 1, period, sheetDimension(sheet, { service_type: type }))
+      addMetric(out, SOURCES.xaya, 'xaya_people_total', 'Xaya people', people, period, sheetDimension(sheet, { service_type: type }))
+      if (/x|yes|true|1/i.test(text(row[uniqueIdx]))) addMetric(out, SOURCES.xaya, 'xaya_unique_interactions', 'Xaya unique interactions', 1, period, sheetDimension(sheet, { service_type: type }))
     }
   }
   return out
@@ -380,9 +384,9 @@ function extractOperations(workbook) {
       const period = periodFrom(row[dateIdx], '2026')
       const type = bucket(row[typeIdx], 'Security')
       if (!text(row[dateIdx]) && type === 'Security') continue
-      addMetric(out, SOURCES.operations, 'security_incidents_total', 'Security incidents', 1, period, { incident_type: type })
-      if (/yes|x|true|1/i.test(text(row[protocolIdx]))) addMetric(out, SOURCES.operations, 'security_protocol_followed', 'Security protocol followed', 1, period)
-      if (/yes|x|true|1/i.test(text(row[resolvedIdx]))) addMetric(out, SOURCES.operations, 'security_resolved', 'Security resolved', 1, period)
+      addMetric(out, SOURCES.operations, 'security_incidents_total', 'Security incidents', 1, period, sheetDimension('Security', { incident_type: type }))
+      if (/yes|x|true|1/i.test(text(row[protocolIdx]))) addMetric(out, SOURCES.operations, 'security_protocol_followed', 'Security protocol followed', 1, period, sheetDimension('Security'))
+      if (/yes|x|true|1/i.test(text(row[resolvedIdx]))) addMetric(out, SOURCES.operations, 'security_resolved', 'Security resolved', 1, period, sheetDimension('Security'))
     }
   }
   const supply = rowsAfterHeader(workbook, 'Supply Management', ['Date Assessed', 'Category', 'Quantity Received', 'Actual Cost'])
@@ -395,9 +399,9 @@ function extractOperations(workbook) {
       const period = periodFrom(row[dateIdx], '2026')
       const category = bucket(row[categoryIdx], 'Supply')
       if (!text(row[dateIdx]) && !toNum(row[qtyIdx]) && !toNum(row[costIdx])) continue
-      addMetric(out, SOURCES.operations, 'supply_assessments_total', 'Supply assessments', 1, period, { category })
-      addMetric(out, SOURCES.operations, 'supply_quantity_received', 'Supply quantity received', row[qtyIdx], period, { category })
-      addMetric(out, SOURCES.operations, 'supply_actual_cost', 'Supply actual cost', row[costIdx], period, { category }, 'usd')
+      addMetric(out, SOURCES.operations, 'supply_assessments_total', 'Supply assessments', 1, period, sheetDimension('Supply Management', { category }))
+      addMetric(out, SOURCES.operations, 'supply_quantity_received', 'Supply quantity received', row[qtyIdx], period, sheetDimension('Supply Management', { category }))
+      addMetric(out, SOURCES.operations, 'supply_actual_cost', 'Supply actual cost', row[costIdx], period, sheetDimension('Supply Management', { category }), 'usd')
     }
   }
   const fleet = rowsAfterHeader(workbook, 'Fleet Management', ['Date of Maintenance Service', 'Vehicle Type', 'Maintenance Type', 'Actual Cost'])
@@ -411,8 +415,8 @@ function extractOperations(workbook) {
       const vehicleType = bucket(row[vehicleIdx], 'Vehicle')
       const maintenanceType = bucket(row[typeIdx], 'Maintenance')
       if (!text(row[dateIdx]) && !toNum(row[costIdx])) continue
-      addMetric(out, SOURCES.operations, 'fleet_maintenance_services_total', 'Fleet maintenance services', 1, period, { vehicle_type: vehicleType, maintenance_type: maintenanceType })
-      addMetric(out, SOURCES.operations, 'fleet_maintenance_actual_cost', 'Fleet maintenance actual cost', row[costIdx], period, { vehicle_type: vehicleType, maintenance_type: maintenanceType }, 'usd')
+      addMetric(out, SOURCES.operations, 'fleet_maintenance_services_total', 'Fleet maintenance services', 1, period, sheetDimension('Fleet Management', { vehicle_type: vehicleType, maintenance_type: maintenanceType }))
+      addMetric(out, SOURCES.operations, 'fleet_maintenance_actual_cost', 'Fleet maintenance actual cost', row[costIdx], period, sheetDimension('Fleet Management', { vehicle_type: vehicleType, maintenance_type: maintenanceType }), 'usd')
     }
   }
   return out
@@ -434,9 +438,9 @@ function extractMarketing(workbook) {
       const status = bucket(row[statusIdx], 'Unspecified')
       const complexity = bucket(row[complexityIdx], 'Unspecified')
       if (!text(row[dateIdx]) && category === 'Project') continue
-      addMetric(out, SOURCES.marketing, 'marketing_projects_total', 'Marketing projects', 1, period, { category, status, complexity })
-      addMetric(out, SOURCES.marketing, 'marketing_project_duration', 'Marketing project duration', row[durationIdx], period, { category }, 'days')
-      addMetric(out, SOURCES.marketing, 'marketing_project_weight', 'Marketing project weight', row[weightIdx], period, { category })
+      addMetric(out, SOURCES.marketing, 'marketing_projects_total', 'Marketing projects', 1, period, sheetDimension('Projects', { category, status, complexity }))
+      addMetric(out, SOURCES.marketing, 'marketing_project_duration', 'Marketing project duration', row[durationIdx], period, sheetDimension('Projects', { category }), 'days')
+      addMetric(out, SOURCES.marketing, 'marketing_project_weight', 'Marketing project weight', row[weightIdx], period, sheetDimension('Projects', { category }))
     }
   }
   return out
@@ -455,26 +459,22 @@ function extractHr(workbook) {
   for (const row of pending.dataRows) {
     const period = periodFrom(row[monthIdx], '2026')
     if (!text(row[monthIdx])) continue
-    addMetric(out, SOURCES.hr, 'hr_open_positions', 'HR open positions', row[openIdx], period)
-    addMetric(out, SOURCES.hr, 'hr_turnover', 'HR turnover', row[separationsIdx], period)
-    addMetric(out, SOURCES.hr, 'hr_new_hires', 'HR new hires', row[newHiresIdx], period)
-    addMetric(out, SOURCES.hr, 'hr_ending_staff', 'HR ending staff', row[endingIdx], period)
-    addMetric(out, SOURCES.hr, 'hr_retention_rate', 'HR retention rate', row[retentionIdx], period, {}, 'percent')
+    addMetric(out, SOURCES.hr, 'hr_open_positions', 'HR open positions', row[openIdx], period, sheetDimension('pending - ignore'))
+    addMetric(out, SOURCES.hr, 'hr_turnover', 'HR turnover', row[separationsIdx], period, sheetDimension('pending - ignore'))
+    addMetric(out, SOURCES.hr, 'hr_new_hires', 'HR new hires', row[newHiresIdx], period, sheetDimension('pending - ignore'))
+    addMetric(out, SOURCES.hr, 'hr_ending_staff', 'HR ending staff', row[endingIdx], period, sheetDimension('pending - ignore'))
+    addMetric(out, SOURCES.hr, 'hr_retention_rate', 'HR retention rate', row[retentionIdx], period, sheetDimension('pending - ignore'), 'percent')
   }
   return out
 }
 
 function extractEnrichment(workbook) {
-  const out = []
-  for (const sheetName of workbook.SheetNames.filter((s) => /^Enrichment Log QTR/i.test(s))) {
-    const rows = readSheet(workbook, sheetName)
-    for (const row of rows) {
-      const monthCells = row.map(text).filter((v) => MONTHS[v.toLowerCase()])
-      if (!monthCells.length) continue
-      for (const month of monthCells) addMetric(out, SOURCES.enrichment, 'enrichment_month_tab_present', 'Enrichment month tab present', 1, periodFrom(month, '2026'))
-    }
-  }
-  return out
+  return extractDashboardTables(
+    workbook,
+    SOURCES.enrichment,
+    ['Enrichment Log YTD', 'Enrichment Log QTR 1', 'Enrichment Log QTR 2', 'Enrichment Log QTR 3', 'Enrichment Log QTR 4'],
+    'enrichment_dashboard',
+  )
 }
 
 function loadWorkbook(fileName) {
@@ -495,13 +495,31 @@ const extractors = [
   ['CARP_2026.xlsx', (wb) => extractDashboardTables(wb, SOURCES.carpDashboard, ['PULSE CHECK', 'YTD Dashboard'], 'carp_dashboard')],
   ['Mental Health_2026.xlsx', (wb) => extractDashboardTables(wb, SOURCES.mentalHealthDashboard, ['PULSE CHECK', 'Dashboard'], 'mental_health_dashboard')],
   ['Residential_2026.xlsx', (wb) => extractDashboardTables(wb, SOURCES.residentialDashboard, ['Dashboard', 'PULSE CHECK'], 'residential_dashboard')],
-  ['Education_2026.xlsx', extractEducation],
+  ['Education_2026.xlsx', (wb) => [
+    ...extractDashboardTables(wb, SOURCES.education, ['Dashboard'], 'education_dashboard'),
+    ...extractEducation(wb),
+  ]],
   ['Community Engagement_2026.xlsm', extractCommunity],
-  ['Volunteer_2026.xlsx', extractVolunteers],
-  ['Xaya_2026.xlsx', extractXaya],
-  ['Operations_2026.xlsx', extractOperations],
-  ['Marketing_2026.xlsx', extractMarketing],
-  ['Human Resources_2026.xlsx', extractHr],
+  ['Volunteer_2026.xlsx', (wb) => [
+    ...extractDashboardTables(wb, SOURCES.volunteers, ['Dashboard'], 'volunteer_dashboard'),
+    ...extractVolunteers(wb),
+  ]],
+  ['Xaya_2026.xlsx', (wb) => [
+    ...extractDashboardTables(wb, SOURCES.xaya, ['Dashboard'], 'xaya_dashboard'),
+    ...extractXaya(wb),
+  ]],
+  ['Operations_2026.xlsx', (wb) => [
+    ...extractDashboardTables(wb, SOURCES.operations, ['PULSE CHECK', 'Maintenance Requests'], 'operations_dashboard'),
+    ...extractOperations(wb),
+  ]],
+  ['Marketing_2026.xlsx', (wb) => [
+    ...extractDashboardTables(wb, SOURCES.marketing, ['Dashboard', 'Summary'], 'marketing_dashboard'),
+    ...extractMarketing(wb),
+  ]],
+  ['Human Resources_2026.xlsx', (wb) => [
+    ...extractDashboardTables(wb, SOURCES.hr, ['Dashboard', 'Hiring', 'Staff'], 'hr_dashboard'),
+    ...extractHr(wb),
+  ]],
   ['Enrichment_2026.xlsx', extractEnrichment],
 ]
 
