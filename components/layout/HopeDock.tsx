@@ -38,6 +38,7 @@ type Message = {
   id: string
   role: 'user' | 'hope'
   text: string
+  status?: string
   card?: HopeCard | null
   followups?: string[]
 }
@@ -141,6 +142,16 @@ export default function HopeDock() {
     })
   }
 
+  function updateLastHopeStatus(status: string) {
+    setMessages((prev) => {
+      const next = [...prev]
+      for (let i = next.length - 1; i >= 0; i--) {
+        if (next[i].role === 'hope') { next[i] = { ...next[i], status }; return next }
+      }
+      return next
+    })
+  }
+
   function updateLastHopeFollowups(followups: string[]) {
     setMessages((prev) => {
       const next = [...prev]
@@ -206,6 +217,9 @@ export default function HopeDock() {
           for (const line of lines) {
             try {
               const parsed = JSON.parse(line.slice(6))
+              if (typeof parsed.status === 'string') {
+                updateLastHopeStatus(parsed.status)
+              }
               if (parsed.token) {
                 fullText += parsed.token
                 updateLastHope(fullText, lastCard)
@@ -384,10 +398,13 @@ export default function HopeDock() {
                 whiteSpace: 'pre-wrap',
               }}>
                 {showThinking ? (
-                  <span className="hope-thinking" aria-label="Hope is thinking">
-                    <span />
-                    <span />
-                    <span />
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+                    <span className="hope-thinking" aria-label="Hope is thinking">
+                      <span />
+                      <span />
+                      <span />
+                    </span>
+                    {m.status && <span style={{ fontSize: 12, color: TEXT2 }}>{m.status}</span>}
                   </span>
                 ) : m.text}
                 {m.card && (

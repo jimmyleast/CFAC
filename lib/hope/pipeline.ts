@@ -57,7 +57,12 @@ export function splitFollowups(raw: string): { answer: string; followups: string
  * - critic 'error' (configured critic failed) OR still failing after retries → BLOCK: safe fallback.
  * The generator (Anthropic) may throw; the caller maps that to a generic user message.
  */
-export async function runHopePipeline(query: string, history: ChatMessage[] = [], componentSlug?: string): Promise<HopeResult> {
+export async function runHopePipeline(query: string, history: ChatMessage[] = [], componentSlug?: string, onStage?: (stage: string) => void): Promise<HopeResult> {
+  // The pipeline blocks until the answer is verified (no unverified content shown),
+  // so it can take 10-30s. Report stage progress so the UI shows live status, not a
+  // dead spinner.
+  const stage = (s: string) => { try { onStage?.(s) } catch { /* never let UI hook break the pipeline */ } }
+  stage('Reading CFAC data…')
   const catalog = await buildDataCatalog(componentSlug)
   const system = genSystem(catalog.text)
   // Strip structured PII before anything reaches a model subprocessor — including
@@ -66,13 +71,16 @@ export async function runHopePipeline(query: string, history: ChatMessage[] = []
   const safeHistory: ChatMessage[] = history.slice(-8).map((m) => ({ role: m.role, content: redactPHI(m.content) }))
   const baseMessages: ChatMessage[] = [...safeHistory, { role: 'user', content: safeQuery }]
 
+  stage('Drafting the answer…')
   let raw = await generateAnthropic(system, baseMessages)
   let { answer, followups } = splitFollowups(stripViewLine(raw))
+  stage('Checking the numbers against the data…')
   let verdict = await critique(safeQuery, catalog.text, answer)
   let iterations = 1
 
   // Only repair when the critic actually returned a verdict (gemini/openai) and it failed.
   while (!verdict.pass && (verdict.critic === 'gemini' || verdict.critic === 'openai') && iterations < MAX_ITERS) {
+    stage('Refining for accuracy…')
     const repairMessages: ChatMessage[] = [
       ...baseMessages,
       { role: 'assistant', content: answer },

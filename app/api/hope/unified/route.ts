@@ -34,7 +34,10 @@ export async function POST(req: Request) {
         try { controller.enqueue(enc.encode(`data: ${JSON.stringify(obj)}\n\n`)) } catch { closed = true }
       }
       try {
-        const result = await runHopePipeline(query, history)
+        // Live stage status so the dock shows progress instead of a dead spinner
+        // during the (blocking) generate→critique→verify pipeline.
+        const result = await runHopePipeline(query, history, undefined, (s) => send({ status: s }))
+        send({ status: '' }) // clear status; the answer follows
         for (const w of result.answer.split(/(\s+)/)) if (w) send({ token: w })
         if (result.card) send({ card: result.card })
         if (result.followups.length) send({ followups: result.followups })
