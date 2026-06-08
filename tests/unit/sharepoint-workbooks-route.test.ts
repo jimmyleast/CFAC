@@ -4,7 +4,7 @@ vi.mock('@/lib/auth/aal', () => ({ requireAdmin: vi.fn() }))
 vi.mock('@/lib/admin', () => ({ getAdminClient: vi.fn() }))
 vi.mock('@/lib/telemetry/events', () => ({ emitAppEvent: vi.fn(async () => {}) }))
 
-import { POST } from '@/app/api/sharepoint/workbooks/route'
+import { DELETE, PATCH, POST } from '@/app/api/sharepoint/workbooks/route'
 import { requireAdmin } from '@/lib/auth/aal'
 import { getAdminClient } from '@/lib/admin'
 
@@ -12,15 +12,27 @@ const mAdminGate = requireAdmin as unknown as ReturnType<typeof vi.fn>
 const mAdmin = getAdminClient as unknown as ReturnType<typeof vi.fn>
 
 const req = (body: unknown) => new Request('http://t/api/sharepoint/workbooks', { method: 'POST', body: JSON.stringify(body) })
+const patchReq = (body: unknown) => new Request('http://t/api/sharepoint/workbooks', { method: 'PATCH', body: JSON.stringify(body) })
+const deleteReq = (id = 'wb1') => new Request(`http://t/api/sharepoint/workbooks?id=${id}`, { method: 'DELETE' })
 
 function adminMock(capture: (row: Record<string, unknown>) => void) {
+  const state = { updated: null as Record<string, unknown> | null, deleted: false }
   return {
+    state,
     from: (table: string) => {
       if (table === 'data_sources') return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: 'src1' }, error: null }) }) }) }
       if (table === 'connected_workbooks') return {
         insert: (row: Record<string, unknown>) => {
           capture(row)
           return { select: () => ({ maybeSingle: async () => ({ data: { id: 'wb1' }, error: null }) }) }
+        },
+        update: (row: Record<string, unknown>) => {
+          state.updated = row
+          return { eq: () => ({ eq: () => ({ select: () => ({ maybeSingle: async () => ({ data: { id: 'wb1' }, error: null }) }) }) }) }
+        },
+        delete: () => {
+          state.deleted = true
+          return { eq: () => ({ eq: () => ({ select: () => ({ maybeSingle: async () => ({ data: { id: 'wb1' }, error: null }) }) }) }) }
         },
       }
       return {}
@@ -62,5 +74,31 @@ describe('POST /api/sharepoint/workbooks', () => {
       range_address: 'A1:C20',
     })
     expect(JSON.stringify(inserted)).not.toContain('21082')
+  })
+
+  it('toggles a workbook binding without touching workbook values', async () => {
+    let inserted: Record<string, unknown> = {}
+    const admin = adminMock((row) => { inserted = row })
+    mAdmin.mockReturnValue(admin)
+    const res = await PATCH(patchReq({ id: 'wb1', enabled: false }))
+    expect(res.status).toBe(200)
+    expect(admin.state.updated).toEqual({ enabled: false })
+    expect(inserted).toEqual({})
+  })
+
+  it('clears last error when a workbook binding is re-enabled', async () => {
+    const admin = adminMock(() => {})
+    mAdmin.mockReturnValue(admin)
+    const res = await PATCH(patchReq({ id: 'wb1', enabled: true }))
+    expect(res.status).toBe(200)
+    expect(admin.state.updated).toEqual({ enabled: true, last_error: null })
+  })
+
+  it('deletes a workbook binding by id', async () => {
+    const admin = adminMock(() => {})
+    mAdmin.mockReturnValue(admin)
+    const res = await DELETE(deleteReq())
+    expect(res.status).toBe(200)
+    expect(admin.state.deleted).toBe(true)
   })
 })

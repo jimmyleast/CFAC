@@ -7,6 +7,7 @@ import { emitAppEvent } from '@/lib/telemetry/events'
 export const dynamic = 'force-dynamic'
 
 type Body = {
+  id?: string
   sourceSlug?: string
   profileKey?: string
   displayName?: string
@@ -15,9 +16,11 @@ type Body = {
   worksheetName?: string
   rangeAddress?: string
   tableName?: string
+  enabled?: boolean
 }
 
 const clean = (v: unknown, max = 300) => String(v || '').trim().slice(0, max)
+const uuidish = (v: unknown) => clean(v, 80)
 
 export async function GET(req: Request) {
   const gate = await requireAdmin(req)
@@ -79,4 +82,64 @@ export async function POST(req: Request) {
     metadata: { sourceSlug, profileKey, workbookId: data?.id },
   }).catch(() => {})
   return NextResponse.json({ ok: true, id: data?.id })
+}
+
+export async function PATCH(req: Request) {
+  const gate = await requireAdmin(req)
+  if ('response' in gate) return gate.response
+
+  const body = await req.json().catch(() => ({})) as Body
+  const id = uuidish(body.id)
+  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+  if (typeof body.enabled !== 'boolean') return NextResponse.json({ error: 'enabled boolean required' }, { status: 400 })
+
+  const update: { enabled: boolean; last_error?: null } = { enabled: body.enabled }
+  if (body.enabled) update.last_error = null
+  const { data, error } = await getAdminClient()
+    .from('connected_workbooks')
+    .update(update)
+    .eq('provider', 'microsoft_sharepoint')
+    .eq('id', id)
+    .select('id')
+    .maybeSingle()
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!data) return NextResponse.json({ error: 'workbook binding not found' }, { status: 404 })
+
+  await emitAppEvent({
+    eventName: 'sharepoint.workbook.updated',
+    category: 'system',
+    userId: gate.user.id,
+    route: '/api/sharepoint/workbooks',
+    status: 'ok',
+    metadata: { workbookId: id, enabled: body.enabled },
+  }).catch(() => {})
+  return NextResponse.json({ ok: true })
+}
+
+export async function DELETE(req: Request) {
+  const gate = await requireAdmin(req)
+  if ('response' in gate) return gate.response
+
+  const id = uuidish(new URL(req.url).searchParams.get('id'))
+  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+
+  const { data, error } = await getAdminClient()
+    .from('connected_workbooks')
+    .delete()
+    .eq('provider', 'microsoft_sharepoint')
+    .eq('id', id)
+    .select('id')
+    .maybeSingle()
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!data) return NextResponse.json({ error: 'workbook binding not found' }, { status: 404 })
+
+  await emitAppEvent({
+    eventName: 'sharepoint.workbook.deleted',
+    category: 'system',
+    userId: gate.user.id,
+    route: '/api/sharepoint/workbooks',
+    status: 'ok',
+    metadata: { workbookId: id },
+  }).catch(() => {})
+  return NextResponse.json({ ok: true })
 }

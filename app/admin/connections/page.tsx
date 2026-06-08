@@ -111,6 +111,29 @@ function Inner() {
     } finally { setAddingWorkbook(false) }
   }
 
+  async function toggleWorkbook(id: string, enabled: boolean) {
+    setBusy(`workbook:${id}`)
+    try {
+      const res = await authFetch('/api/sharepoint/workbooks', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, enabled }),
+      })
+      if (!res.ok) { const e = await res.json().catch(() => ({})); alert(e.error || `Failed (${res.status})`) }
+      await load()
+    } finally { setBusy(null) }
+  }
+
+  async function deleteWorkbook(id: string, name: string) {
+    if (!confirm(`Remove SharePoint workbook binding "${name}"?`)) return
+    setBusy(`workbook:${id}`)
+    try {
+      const res = await authFetch(`/api/sharepoint/workbooks?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+      if (!res.ok) { const e = await res.json().catch(() => ({})); alert(e.error || `Failed (${res.status})`) }
+      await load()
+    } finally { setBusy(null) }
+  }
+
   async function connectApiKey(id: string) {
     const apiKey = (keyDraft[id] || '').trim()
     if (!apiKey) return
@@ -329,11 +352,24 @@ function Inner() {
               </button>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {workbooks.map((w) => (
-                  <div key={w.id} style={{ background: BG2, border: `1px solid ${LINE}`, borderRadius: 8, padding: '10px 12px', fontSize: 12, color: TEXT2 }}>
-                    <span style={{ color: TEXT, fontWeight: 600 }}>{w.display_name}</span>
-                    <span> · {w.data_sources?.name || 'source'} · {w.source_profile_key}</span>
-                    <span> · {w.table_name ? `table ${w.table_name}` : `${w.worksheet_name || 'sheet'} ${w.range_address || ''}`}</span>
-                    {w.last_error && <span style={{ color: WARN }}> · {w.last_error}</span>}
+                  <div key={w.id} style={{ background: BG2, border: `1px solid ${LINE}`, borderRadius: 8, padding: '10px 12px', fontSize: 12, color: TEXT2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <div style={{ minWidth: 0 }}>
+                      <span style={{ color: TEXT, fontWeight: 600 }}>{w.display_name}</span>
+                      <span> - {w.data_sources?.name || 'source'} - {w.source_profile_key}</span>
+                      <span> - {w.table_name ? `table ${w.table_name}` : `${w.worksheet_name || 'sheet'} ${w.range_address || ''}`}</span>
+                      <span style={{ color: w.enabled ? OK : TEXT4 }}> - {w.enabled ? 'enabled' : 'disabled'}</span>
+                      {w.last_error && <span style={{ color: WARN }}> - {w.last_error}</span>}
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                      <button disabled={busy === `workbook:${w.id}`} onClick={() => toggleWorkbook(w.id, !w.enabled)}
+                        style={{ background: 'none', border: `1px solid ${LINE}`, color: w.enabled ? WARN : OK, borderRadius: 7, padding: '6px 10px', fontSize: 12, cursor: 'pointer' }}>
+                        {w.enabled ? 'Disable' : 'Enable'}
+                      </button>
+                      <button disabled={busy === `workbook:${w.id}`} onClick={() => deleteWorkbook(w.id, w.display_name)}
+                        style={{ background: 'none', border: `1px solid ${WARN}66`, color: WARN, borderRadius: 7, padding: '6px 10px', fontSize: 12, cursor: 'pointer' }}>
+                        Remove
+                      </button>
+                    </div>
                   </div>
                 ))}
                 {!workbooks.length && <div style={{ color: TEXT4, fontSize: 12, fontStyle: 'italic' }}>No connected workbook bindings yet.</div>}

@@ -29,6 +29,8 @@ export type AppEventName =
   | 'connection.changed'
   | 'source.created'
   | 'sharepoint.workbook.registered'
+  | 'sharepoint.workbook.updated'
+  | 'sharepoint.workbook.deleted'
   | 'connect_invite.created'
   | 'connection.synced'
   | 'case.status_changed'
