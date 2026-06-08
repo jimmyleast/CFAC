@@ -24,6 +24,13 @@ type Tile = {
   key: string; label: string; value: number; period: string
   priorValue: number | null; priorPeriod: string | null; deltaPct: number | null
 }
+type OpsBreakdown = { label: string; value: number }
+type OpsSummary = {
+  period: string | null
+  totals: Record<string, number>
+  maintenance: { byType: OpsBreakdown[]; byPriority: OpsBreakdown[]; byStatus: OpsBreakdown[] }
+  fleet: { byVehicleType: OpsBreakdown[]; byPurpose: OpsBreakdown[] }
+}
 
 const SUCCESS = '#7DD3C7'
 const fmtNum = (n: number) => (Number.isInteger(n) ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 1 }))
@@ -55,6 +62,7 @@ export default function ComponentPage() {
 
   const [sources, setSources] = useState<Source[]>([])
   const [tiles, setTiles] = useState<Tile[]>([])
+  const [ops, setOps] = useState<OpsSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
 
@@ -69,6 +77,14 @@ export default function ComponentPage() {
       .then(async (r) => (r.ok ? r.json() : { tiles: [] }))
       .then((d) => { if (active) setTiles(d.tiles || []) })
       .catch(() => { if (active) setTiles([]) })
+    if (slug === 'operations') {
+      authFetch('/api/operations/summary')
+        .then(async (r) => (r.ok ? r.json() : null))
+        .then((d) => { if (active) setOps(d) })
+        .catch(() => { if (active) setOps(null) })
+    } else {
+      setOps(null)
+    }
     return () => { active = false }
   }, [slug])
 
@@ -91,6 +107,9 @@ export default function ComponentPage() {
       {!loading && sources.length > 0 && (
         <>
           <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: TEXT2, margin: '4px 0 12px' }}>Key Metrics</div>
+          {slug === 'operations' && ops && (
+            <OperationsSummary summary={ops} />
+          )}
           {tiles.length > 0 ? (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, marginBottom: 28 }}>
               {tiles.map((t) => {
@@ -144,6 +163,63 @@ export default function ComponentPage() {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+function SmallBarList({ title, rows }: { title: string; rows: OpsBreakdown[] }) {
+  const max = Math.max(...rows.map((r) => r.value), 1)
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontSize: 11, color: TEXT2, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>{title}</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+        {rows.slice(0, 5).map((r) => (
+          <div key={r.label}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12, color: TEXT }}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.label}</span>
+              <span style={{ color: TEXT2 }}>{fmtNum(r.value)}</span>
+            </div>
+            <div style={{ height: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 2, marginTop: 3 }}>
+              <div style={{ height: 4, width: `${Math.max(4, (r.value / max) * 100)}%`, background: TEAL, borderRadius: 2 }} />
+            </div>
+          </div>
+        ))}
+        {!rows.length && <div style={{ color: TEXT4, fontSize: 12, fontStyle: 'italic' }}>No breakdown yet.</div>}
+      </div>
+    </div>
+  )
+}
+
+function OperationsSummary({ summary }: { summary: OpsSummary }) {
+  const t = summary.totals
+  return (
+    <div style={{ background: BG2, border: `1px solid ${LINE}`, borderRadius: 10, padding: 16, marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: TEXT }}>Operations Snapshot</div>
+        <div style={{ fontSize: 11, color: TEXT2 }}>{summary.period || 'latest period'}</div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 16 }}>
+        <MiniStat label="Requests" value={t.maintenance_requests_total || 0} />
+        <MiniStat label="On Time" value={t.maintenance_on_time_yes || 0} />
+        <MiniStat label="Trips" value={t.fleet_trips_total || 0} />
+        <MiniStat label="Miles" value={t.fleet_miles_driven || 0} />
+        <MiniStat label="Costs" value={t.maintenance_actual_cost || 0} prefix="$" />
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 16 }}>
+        <SmallBarList title="Request Type" rows={summary.maintenance.byType} />
+        <SmallBarList title="Priority" rows={summary.maintenance.byPriority} />
+        <SmallBarList title="Vehicle" rows={summary.fleet.byVehicleType} />
+        <SmallBarList title="Purpose" rows={summary.fleet.byPurpose} />
+      </div>
+    </div>
+  )
+}
+
+function MiniStat({ label, value, prefix = '' }: { label: string; value: number; prefix?: string }) {
+  return (
+    <div style={{ border: `1px solid ${LINE}`, borderRadius: 8, padding: '10px 12px', background: 'rgba(255,255,255,0.02)' }}>
+      <div style={{ fontSize: 10, color: TEXT2, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{label}</div>
+      <div style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 700, color: TEXT }}>{prefix}{fmtNum(value)}</div>
     </div>
   )
 }
