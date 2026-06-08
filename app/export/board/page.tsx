@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Pinwheel from '@/components/Pinwheel'
 
@@ -15,6 +16,7 @@ async function authFetch(url: string) {
 const fmt = (n: number) => n.toLocaleString('en-US')
 
 export default function BoardReportPage() {
+  const router = useRouter()
   const [tiles, setTiles] = useState<Tile[]>([])
   const [impact, setImpact] = useState<Impact[]>([])
   const [period, setPeriod] = useState<string | null>(null)
@@ -56,7 +58,11 @@ export default function BoardReportPage() {
         }
       `}</style>
       <div style={{ maxWidth: 860, margin: '0 auto', padding: '40px 32px' }}>
-        <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+        <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <button onClick={() => { if (window.history.length > 1) router.back(); else router.push('/executive') }}
+            style={{ background: 'none', border: '1px solid var(--b-line)', color: 'var(--b-mute)', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            ← Back
+          </button>
           <button onClick={() => window.print()} style={{ background: 'var(--b-accent)', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Print / Save as PDF</button>
         </div>
 

@@ -5,17 +5,7 @@ import { getSupabasePublicConfig } from '@/lib/supabase/config'
 import { upsertUserProfile } from '@/lib/admin'
 import { resolveAppBaseUrl } from '@/lib/url'
 import { emailDisabledJson, isEmailSendingEnabled } from '@/lib/email-control'
-
-function getAllowedDomains() {
-  return (process.env.ALLOWED_EMAIL_DOMAINS || '')
-    .split(',')
-    .map((domain) => domain.trim().toLowerCase())
-    .filter(Boolean)
-}
-
-function getEmailDomain(email: string) {
-  return email.split('@')[1]?.toLowerCase() || ''
-}
+import { isLoginAllowed } from '@/lib/auth/allowlist'
 
 export async function POST(request: Request) {
   try {
@@ -26,9 +16,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Enter a valid email address.' }, { status: 400 })
     }
 
-    const allowedDomains = getAllowedDomains()
-    if (allowedDomains.length > 0 && !allowedDomains.includes(getEmailDomain(normalizedEmail))) {
-      return NextResponse.json({ error: 'This email domain is not allowed.' }, { status: 403 })
+    if (!isLoginAllowed(normalizedEmail)) {
+      return NextResponse.json({ error: 'This email isn’t permitted to sign in. Use your CFAC email or ask an admin to invite you.' }, { status: 403 })
     }
 
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {

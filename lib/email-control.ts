@@ -1,5 +1,15 @@
+function hasResendConfigured() {
+  return Boolean(process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL)
+}
+
+// Email sending is enabled when explicitly turned on, OR — to avoid a redundant
+// second toggle in production — when Resend is configured and not explicitly killed.
+// Set ENABLE_EMAIL_SENDING=false to force-disable (e.g. staging) even with Resend set.
 export function isEmailSendingEnabled() {
-  return process.env.ENABLE_EMAIL_SENDING === 'true'
+  const v = (process.env.ENABLE_EMAIL_SENDING || '').toLowerCase()
+  if (v === 'true') return true
+  if (v === 'false') return false
+  return hasResendConfigured()
 }
 
 export function isSmsSendingEnabled() {

@@ -1,11 +1,16 @@
 import { createClient } from '@supabase/supabase-js'
 import { getSupabasePublicConfig } from '@/lib/supabase/config'
 
+// Built-in admins for CFAC, so admin access works without depending on a Railway env
+// var being set. ADMIN_EMAILS env (if set) is merged on top. Keep this list tiny.
+const DEFAULT_ADMIN_EMAILS = ['jimmyleast@gmail.com', 'melanie@cfacbentonco.com']
+
 function getAdminEmails(): string[] {
-  return (process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || '')
+  const fromEnv = (process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || '')
     .split(',')
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean)
+  return Array.from(new Set([...DEFAULT_ADMIN_EMAILS, ...fromEnv]))
 }
 
 export function isAdminEmail(email: string): boolean {

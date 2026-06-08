@@ -4,17 +4,7 @@ import { sendEmail } from '@/lib/email'
 import { getSupabasePublicConfig } from '@/lib/supabase/config'
 import { resolveAppBaseUrl } from '@/lib/url'
 import { emailDisabledJson, isEmailSendingEnabled } from '@/lib/email-control'
-
-function getAllowedDomains() {
-  return (process.env.ALLOWED_EMAIL_DOMAINS || '')
-    .split(',')
-    .map((domain) => domain.trim().toLowerCase())
-    .filter(Boolean)
-}
-
-function getEmailDomain(email: string) {
-  return email.split('@')[1]?.toLowerCase() || ''
-}
+import { isLoginAllowed } from '@/lib/auth/allowlist'
 
 export async function POST(request: Request) {
   try {
@@ -25,9 +15,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Enter a valid email address.' }, { status: 400 })
     }
 
-    const allowedDomains = getAllowedDomains()
-    if (allowedDomains.length > 0 && !allowedDomains.includes(getEmailDomain(normalizedEmail))) {
-      return NextResponse.json({ error: 'This email domain is not allowed.' }, { status: 403 })
+    // Same allowlist as login — a recovery link is a credential-bearing primitive and
+    // must never be minted for an arbitrary (off-domain, non-admin) address.
+    if (!isLoginAllowed(normalizedEmail)) {
+      return NextResponse.json({ error: 'This email isn’t permitted.' }, { status: 403 })
     }
 
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
