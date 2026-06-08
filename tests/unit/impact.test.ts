@@ -4,7 +4,7 @@ import type { MetricSeries } from '@/lib/metrics/tiles'
 
 const byKey: Record<string, MetricSeries> = {
   reach: { key: 'reach', label: 'Reach', series: [{ period: '2024', value: 19000 }, { period: '2025', value: 21082 }] },
-  children_served: { key: 'children_served', label: 'Children', series: [{ period: '2025', value: 1007 }] },
+  clients_served: { key: 'clients_served', label: 'Children', series: [{ period: '2025', value: 1007 }] },
   forensic_interviews: { key: 'forensic_interviews', label: 'FI', series: [{ period: '2025', value: 941 }] },
   medical: { key: 'medical', label: 'Medical', series: [{ period: '2025', value: 144 }] },
 }
@@ -31,7 +31,7 @@ const defs: DefinitionLite[] = [
 ]
 const mappings: Mapping[] = [
   { definition_key: 'reach', source_metric_key: 'reach', agg: 'latest', status: 'active' },
-  { definition_key: 'clients_served', source_metric_key: 'children_served', agg: 'latest', status: 'active' },
+  { definition_key: 'clients_served', source_metric_key: 'clients_served', agg: 'latest', status: 'active' },
   { definition_key: 'services_provided', source_metric_key: 'forensic_interviews', agg: 'latest', status: 'active' },
   { definition_key: 'services_provided', source_metric_key: 'medical', agg: 'latest', status: 'active' },
 ]
