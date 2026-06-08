@@ -1,11 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import { ORG_HEALTH_SPEC, resolveHealthSections, SOURCE_LABEL } from '@/lib/dashboard/org-health-spec'
+import { isRollupDimension } from '@/lib/dashboard/health-aggregation'
 
 describe('resolveHealthSections', () => {
   it('resolves a live tile when its metric_key has a value', () => {
-    const latest = new Map([['clients_served', { value: 895, period: '2025' }]])
+    const latest = new Map([['children_served', { value: 895, period: '2025' }]])
     const sections = resolveHealthSections(ORG_HEALTH_SPEC, latest)
-    const tile = sections.flatMap((s) => s.tiles).find((t) => t.metricKey === 'clients_served')!
+    const tile = sections.flatMap((s) => s.tiles).find((t) => t.metricKey === 'children_served')!
     expect(tile.state).toBe('live')
     expect(tile.value).toBe(895)
     expect(tile.period).toBe('2025')
@@ -13,7 +14,7 @@ describe('resolveHealthSections', () => {
 
   it('marks a metric tile with no data as awaiting (not live)', () => {
     const sections = resolveHealthSections(ORG_HEALTH_SPEC, new Map())
-    const tile = sections.flatMap((s) => s.tiles).find((t) => t.metricKey === 'clients_served')!
+    const tile = sections.flatMap((s) => s.tiles).find((t) => t.metricKey === 'children_served')!
     expect(tile.state).toBe('awaiting')
     expect(tile.value).toBeNull()
   })
@@ -67,17 +68,22 @@ describe('resolveHealthSections', () => {
 
   it('uses the real impact-history profile keys for annual dashboard tiles', () => {
     const keys = ORG_HEALTH_SPEC.flatMap((s) => s.tiles.map((t) => t.metricKey).filter(Boolean))
-    expect(keys).toContain('clients_served')
-    expect(keys).toContain('medical')
-    expect(keys).toContain('mental_health')
-    expect(keys).toContain('education_attendees')
+    expect(keys).toContain('children_served')
+    expect(keys).toContain('medical_exams')
+    expect(keys).toContain('mental_health_sessions')
+    expect(keys).toContain('education_people_trained')
     expect(keys).toContain('community_event_attendance')
-    expect(keys).toContain('volunteers_total')
+    expect(keys).toContain('volunteers')
     expect(keys).toContain('finance_income')
     expect(keys).toContain('hr_retention_rate')
     expect(keys).toContain('hr_open_positions')
-    expect(keys).not.toContain('children_served')
-    expect(keys).not.toContain('medical_exams')
-    expect(keys).not.toContain('mental_health_sessions')
+    expect(keys).not.toContain('clients_served')
+    expect(keys).not.toContain('medical')
+    expect(keys).not.toContain('mental_health')
+  })
+
+  it('treats workbook sheet lineage as rollup metadata, not a breakdown', () => {
+    expect(isRollupDimension({ workbook_sheet: 'Individual Log' })).toBe(true)
+    expect(isRollupDimension({ workbook_sheet: 'Group', volunteer_type: 'Adult' })).toBe(false)
   })
 })

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAdminClient } from '@/lib/admin'
 import { requireUserMfa } from '@/lib/auth/aal'
+import { isRollupDimension } from '@/lib/dashboard/health-aggregation'
 import { ORG_HEALTH_SPEC, resolveHealthSections, aggregateModeByKey } from '@/lib/dashboard/org-health-spec'
 
 export const dynamic = 'force-dynamic'
@@ -26,19 +27,18 @@ export async function GET(req: Request) {
       .limit(5000)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-    // For each key, find the latest period_start; sum dimension-empty source rows in it.
+    // For each key, find the latest period_start; sum rollup source rows in it.
+    // Workbook sheet lineage is allowed. Real breakdown dimensions are not.
     const latestPeriodByKey = new Map<string, string>()
     for (const r of (data || [])) {
-      const dimEmpty = !r.dimension || (typeof r.dimension === 'object' && Object.keys(r.dimension as object).length === 0)
-      if (!dimEmpty || r.period_start == null) continue
+      if (!isRollupDimension(r.dimension) || r.period_start == null) continue
       const cur = latestPeriodByKey.get(r.metric_key)
       if (!cur || String(r.period_start) > cur) latestPeriodByKey.set(r.metric_key, String(r.period_start))
     }
     const aggMode = aggregateModeByKey()
     const acc = new Map<string, { value: number; period: string | null }>()
     for (const r of (data || [])) {
-      const dimEmpty = !r.dimension || (typeof r.dimension === 'object' && Object.keys(r.dimension as object).length === 0)
-      if (!dimEmpty) continue
+      if (!isRollupDimension(r.dimension)) continue
       if (String(r.period_start) !== latestPeriodByKey.get(r.metric_key)) continue
       const v = Number(r.value)
       if (!Number.isFinite(v)) continue

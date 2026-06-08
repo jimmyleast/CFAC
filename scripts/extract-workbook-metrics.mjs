@@ -276,10 +276,32 @@ function extractEducation(workbook) {
     const period = periodFrom('', `2026 ${sheet}`)
     for (const row of dataRows) {
       const presentation = bucket(row[presentationIdx])
+      if (presentation === 'Unspecified') continue
       const count = toNum(row[countIdx]) ?? (presentation !== 'Unspecified' ? 1 : 0)
       addMetric(out, SOURCES.education, 'education_trainings_total', 'Education trainings', count, period, sheetDimension(sheet))
       addMetric(out, SOURCES.education, 'education_trainings_by_type', 'Education trainings by type', count, period, sheetDimension(sheet, { training_type: presentation }))
       addMetric(out, SOURCES.education, 'education_attendees', 'Education attendees', row[peopleIdx], period, sheetDimension(sheet))
+    }
+  }
+  return out
+}
+
+function extractEducationDashboard(workbook) {
+  const out = extractDashboardTables(workbook, SOURCES.education, ['Dashboard'], 'education_dashboard')
+  const rows = readSheet(workbook, 'Dashboard')
+  const period = { label: '2026', start: '2026-01-01' }
+  const added = new Set()
+  for (const row of rows) {
+    for (let i = 0; i < row.length - 1; i++) {
+      const label = norm(row[i])
+      if (label === 'total trainings' && !added.has('education_trainings_ytd')) {
+        added.add('education_trainings_ytd')
+        addPoint(out, SOURCES.education, 'education_trainings_ytd', 'Education trainings YTD', row[i + 1], period, sheetDimension('Dashboard'))
+      }
+      if (label === 'total people trained' && !added.has('education_people_trained')) {
+        added.add('education_people_trained')
+        addPoint(out, SOURCES.education, 'education_people_trained', 'People trained', row[i + 1], period, sheetDimension('Dashboard'))
+      }
     }
   }
   return out
@@ -496,7 +518,7 @@ const extractors = [
   ['Mental Health_2026.xlsx', (wb) => extractDashboardTables(wb, SOURCES.mentalHealthDashboard, ['PULSE CHECK', 'Dashboard'], 'mental_health_dashboard')],
   ['Residential_2026.xlsx', (wb) => extractDashboardTables(wb, SOURCES.residentialDashboard, ['Dashboard', 'PULSE CHECK'], 'residential_dashboard')],
   ['Education_2026.xlsx', (wb) => [
-    ...extractDashboardTables(wb, SOURCES.education, ['Dashboard'], 'education_dashboard'),
+    ...extractEducationDashboard(wb),
     ...extractEducation(wb),
   ]],
   ['Community Engagement_2026.xlsm', extractCommunity],

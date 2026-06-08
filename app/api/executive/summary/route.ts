@@ -10,14 +10,14 @@ const TILE_ORDER: { key: string; label: string }[] = [
   { key: 'reach', label: 'Total Reach' },
   { key: 'children_served', label: 'Children Served' },
   { key: 'forensic_interviews', label: 'Forensic Interviews' },
-  { key: 'medical', label: 'Medical Exams' },
-  { key: 'mental_health', label: 'Mental Health' },
-  { key: 'education', label: 'People Educated' },
+  { key: 'medical_exams', label: 'Medical Exams' },
+  { key: 'mental_health_sessions', label: 'Mental Health' },
+  { key: 'education_people_trained', label: 'People Educated' },
   { key: 'tours', label: 'Tours' },
-  { key: 'community_events', label: 'Community Events' },
+  { key: 'community_event_attendance', label: 'Community Event Attendance' },
   { key: 'volunteers', label: 'Volunteers' },
-  { key: 'res_women', label: 'Residential — Women' },
-  { key: 'res_children', label: 'Residential — Children' },
+  { key: 'residential_women', label: 'Residential — Women' },
+  { key: 'residential_children', label: 'Residential — Children' },
 ]
 
 export async function GET(req: Request) {
