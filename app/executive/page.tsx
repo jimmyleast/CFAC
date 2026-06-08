@@ -53,10 +53,18 @@ function Sparkline({ series }: { series: { value: number }[] }) {
 
 function fmt(n: number) { return n.toLocaleString('en-US') }
 
+type HealthTile = {
+  label: string; state: 'live' | 'awaiting'; value: number | null; period: string | null
+  metricKey: string | null; note: string | null; awaitingLabel: string | null; phiGated: boolean
+}
+type HealthSection = { title: string; blurb: string; tiles: HealthTile[] }
+
 export default function ExecutivePage() {
   const router = useRouter()
   const [tiles, setTiles] = useState<Tile[]>([])
   const [impact, setImpact] = useState<Impact[]>([])
+  const [health, setHealth] = useState<HealthSection[]>([])
+  const [healthMeta, setHealthMeta] = useState<{ live: number; total: number } | null>(null)
   const [latestPeriod, setLatestPeriod] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
@@ -75,6 +83,11 @@ export default function ExecutivePage() {
       .then((res) => (res.ok ? res.json() : { impact: [] }))
       .then((data) => { if (active) setImpact(data.impact || []) })
       .catch(() => { if (active) setImpact([]) })
+    // Org Health Snapshot (the org's CFAC DASHBOARD spec) — independent load.
+    authFetch('/api/dashboard/health')
+      .then((res) => (res.ok ? res.json() : { sections: [] }))
+      .then((data) => { if (active) { setHealth(data.sections || []); if (data.sections) setHealthMeta({ live: data.liveCount, total: data.totalCount }) } })
+      .catch(() => { if (active) setHealth([]) })
     return () => { active = false }
   }, [])
 
@@ -139,6 +152,52 @@ export default function ExecutivePage() {
         </div>
       )}
 
+      {/* Org Health Snapshot — the org's own "CFAC DASHBOARD" spec, grouped. Live tiles
+          drill in; awaiting tiles honestly name the source they still need. */}
+      {health.length > 0 && (
+        <div style={{ marginBottom: 32 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 4 }}>
+            <h2 style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 20, color: TEXT, margin: 0 }}>Org Health Snapshot</h2>
+            {healthMeta && <span style={{ fontSize: 12, color: TEXT2 }}>{healthMeta.live} of {healthMeta.total} measures live</span>}
+          </div>
+          <p style={{ color: TEXT2, fontSize: 12.5, margin: '0 0 18px', maxWidth: 720 }}>
+            The health and active life cycle of the organization, per CFAC&apos;s data-points spec. Tiles awaiting a source are shown honestly — most live counts arrive with the Collaborate case feed (PHI-gated) and the connectors.
+          </p>
+          {health.map((section) => (
+            <div key={section.title} style={{ marginBottom: 22 }}>
+              <div style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: GOLD, marginBottom: 4 }}>{section.title}</div>
+              <div style={{ fontSize: 12, color: TEXT2, marginBottom: 12, maxWidth: 720 }}>{section.blurb}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
+                {section.tiles.map((t) => {
+                  const live = t.state === 'live'
+                  return (
+                    <div key={t.label} onClick={() => live && t.metricKey && router.push(`/metric/${encodeURIComponent(t.metricKey)}`)}
+                      title={live ? 'Click to drill in' : t.phiGated ? 'Awaiting the PHI-gated case feed' : 'Awaiting source connection'}
+                      style={{ background: BG2, border: `1px solid ${live ? LINE : '#22262B'}`, borderRadius: 10, padding: '14px 16px', cursor: live ? 'pointer' : 'default', opacity: live ? 1 : 0.72 }}
+                      onMouseEnter={(e) => { if (live) e.currentTarget.style.borderColor = GOLD }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = live ? LINE : '#22262B' }}>
+                      <div style={{ color: TEXT2, fontSize: 11, letterSpacing: '0.03em', textTransform: 'uppercase', marginBottom: 8, lineHeight: 1.3, minHeight: 28 }}>{t.label}</div>
+                      {live ? (
+                        <>
+                          <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 26, color: TEXT, lineHeight: 1 }}>{fmt(t.value as number)}</div>
+                          <div style={{ fontSize: 10.5, color: TEXT2, marginTop: 6 }}>{t.period}{t.note ? ` · ${t.note}` : ''}</div>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{ fontSize: 13, color: '#6B6660', fontStyle: 'italic' }}>—</div>
+                          <div style={{ fontSize: 10.5, marginTop: 6, color: t.phiGated ? DOWN : TEXT2 }}>
+                            {t.phiGated ? '🔒 ' : ''}Awaiting {t.awaitingLabel || 'source'}{t.phiGated ? ' (PHI-gated)' : ''}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {loading && <div style={{ color: TEXT2, fontSize: 14 }}>Loading metrics…</div>}
       {err && <div style={{ color: DOWN, fontSize: 14 }}>Couldn’t load metrics: {err}</div>}
       {!loading && !err && !tiles.length && (
@@ -147,6 +206,7 @@ export default function ExecutivePage() {
         </div>
       )}
 
+      {tiles.length > 0 && <h2 style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 20, color: TEXT, margin: '0 0 14px' }}>All Metrics</h2>}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
         {tiles.map((t) => {
           const up = t.deltaPct !== null && t.deltaPct >= 0
