@@ -28,6 +28,7 @@ export type AppEventName =
   | 'data.quality.duplicates'
   | 'connection.changed'
   | 'source.created'
+  | 'source.updated'
   | 'sharepoint.workbook.registered'
   | 'sharepoint.workbook.updated'
   | 'sharepoint.workbook.deleted'

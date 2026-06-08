@@ -62,6 +62,7 @@ function Inner() {
   const [addingWorkbook, setAddingWorkbook] = useState(false)
   const [creating, setCreating] = useState(false)
   const [inviteLink, setInviteLink] = useState<{ provider: string; link: string } | null>(null)
+  const [profileDraft, setProfileDraft] = useState<Record<string, string>>({})
 
   async function load() {
     setLoading(true); setErr(null)
@@ -92,6 +93,26 @@ function Inner() {
       if (!res.ok) { const e = await res.json().catch(() => ({})); alert(e.error || `Failed (${res.status})`) }
       else { setNewName(''); setNewProfileKey(''); await load() }
     } finally { setCreating(false) }
+  }
+
+  async function updateSourceProfile(slug: string, profileKey: string) {
+    setBusy(`source:${slug}`)
+    try {
+      const res = await authFetch('/api/data/sources', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug, profileKey: profileKey || null }),
+      })
+      if (!res.ok) { const e = await res.json().catch(() => ({})); alert(e.error || `Failed (${res.status})`) }
+      else {
+        setProfileDraft((current) => {
+          const next = { ...current }
+          delete next[slug]
+          return next
+        })
+        await load()
+      }
+    } finally { setBusy(null) }
   }
 
   async function addWorkbook() {
@@ -314,7 +335,20 @@ function Inner() {
                   </div>
                 </div>
                 {isAdmin && (
-                  <a href={`/admin/data/import?source=${encodeURIComponent(s.slug)}`} style={{ background: 'rgba(91,163,217,0.12)', border: `1px solid ${GOLD}`, color: GOLD, borderRadius: 8, padding: '7px 14px', fontSize: 13, fontWeight: 600, textDecoration: 'none', flexShrink: 0 }}>Upload data</a>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
+                    <select value={profileDraft[s.slug] ?? s.profileKey ?? ''} onChange={(e) => setProfileDraft({ ...profileDraft, [s.slug]: e.target.value })}
+                      style={{ background: '#0D0D0F', border: `1px solid ${LINE}`, borderRadius: 8, color: TEXT, fontSize: 12, padding: '7px 9px', maxWidth: 220 }}>
+                      <option value="">No profile</option>
+                      {profiles.map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
+                    </select>
+                    {(profileDraft[s.slug] ?? s.profileKey ?? '') !== (s.profileKey ?? '') && (
+                      <button disabled={busy === `source:${s.slug}`} onClick={() => updateSourceProfile(s.slug, profileDraft[s.slug] ?? '')}
+                        style={{ background: GOLD, border: 'none', color: '#0D0D0F', borderRadius: 8, padding: '7px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                        Save profile
+                      </button>
+                    )}
+                    <a href={`/admin/data/import?source=${encodeURIComponent(s.slug)}`} style={{ background: 'rgba(91,163,217,0.12)', border: `1px solid ${GOLD}`, color: GOLD, borderRadius: 8, padding: '7px 14px', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>Upload data</a>
+                  </div>
                 )}
               </div>
             ))}

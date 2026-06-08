@@ -48,6 +48,37 @@ export async function POST(req: Request) {
   return NextResponse.json({ ok: true, slug, profileKey: profile?.key ?? null })
 }
 
+export async function PATCH(req: Request) {
+  const gate = await requireAdmin(req)
+  if ('response' in gate) return gate.response
+
+  const body = await req.json().catch(() => ({})) as { slug?: string; profileKey?: string | null }
+  const slug = String(body.slug || '').trim().slice(0, 120)
+  if (!slug) return NextResponse.json({ error: 'slug required' }, { status: 400 })
+
+  const profileKey = body.profileKey ? String(body.profileKey).trim().slice(0, 120) : null
+  if (profileKey && !getSourceProfile(profileKey)) return NextResponse.json({ error: 'known profileKey required' }, { status: 400 })
+
+  const { data, error } = await getAdminClient()
+    .from('data_sources')
+    .update({ source_profile_key: profileKey })
+    .eq('slug', slug)
+    .select('id, slug, source_profile_key')
+    .maybeSingle()
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!data) return NextResponse.json({ error: `Unknown source: ${slug}` }, { status: 404 })
+
+  await emitAppEvent({
+    eventName: 'source.updated',
+    category: 'system',
+    userId: gate.user.id,
+    route: '/api/data/sources',
+    status: 'ok',
+    metadata: { slug, profileKey },
+  }).catch(() => {})
+  return NextResponse.json({ ok: true, slug: data.slug, profileKey: data.source_profile_key })
+}
+
 export async function GET(req: Request) {
   const auth = await requireUserMfa(req)
   if ('response' in auth) return auth.response
