@@ -82,6 +82,7 @@ export async function syncSharePointProfiledWorkbooks(
         batchId,
         header,
         dataRows,
+        contextLabel: `${binding.display_name} ${binding.worksheet_name || ''}`,
       })
       if (!profiled.handled) throw new Error(`no source profile handler for ${binding.source_profile_key}`)
       if (profiled.metrics.length) {

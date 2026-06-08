@@ -109,6 +109,21 @@ describe('profile imports', () => {
     expect(JSON.stringify(out.importRows[0].raw)).not.toContain('Synthetic Presenter')
   })
 
+  it('imports 2026 education month-tab aggregates with period context', () => {
+    const out = importWithSourceProfile({
+      ...base,
+      profileKey: 'education_training_aggregate',
+      header: ['Presenter', 'Presentation', 'Count', 'Total People', 'Evaluation Rating'],
+      dataRows: [['Synthetic Presenter', 'Body Safety', 1, 32, 4.8]],
+      fallbackPeriodLabel: '2026',
+      contextLabel: 'JAN',
+    })
+    expect(out.metrics.find((m) => m.metric_key === 'education_attendees')?.value).toBe(32)
+    expect(out.metrics.find((m) => m.metric_key === 'education_attendees')?.period_label).toBe('2026-01')
+    expect(out.metrics.find((m) => m.metric_key === 'education_trainings_by_type')?.dimension).toEqual({ training_type: 'Body Safety' })
+    expect(JSON.stringify(out.importRows[0].raw)).not.toContain('Synthetic Presenter')
+  })
+
   it('imports community and volunteer aggregate rows', () => {
     const community = importWithSourceProfile({
       ...base,
@@ -127,6 +142,29 @@ describe('profile imports', () => {
     expect(volunteers.metricKeys).toContain('volunteers_total')
     expect(volunteers.metricKeys).toContain('volunteer_hours')
     expect(JSON.stringify(volunteers.importRows[0].raw)).not.toContain('Synthetic Volunteer')
+  })
+
+  it('imports discovered community and volunteer workbook aliases', () => {
+    const community = importWithSourceProfile({
+      ...base,
+      profileKey: 'community_engagement_aggregate',
+      header: ['Date', 'Event Type', 'Event Attendees', 'Engagement Conversion', 'Contact/Notes'],
+      dataRows: [['2026-05-02', 'Tour', 14, 2, 'Synthetic note']],
+    })
+    expect(community.metrics.find((m) => m.metric_key === 'community_event_attendance')?.value).toBe(14)
+    expect(community.metrics.find((m) => m.metric_key === 'community_conversions')?.value).toBe(2)
+
+    const group = importWithSourceProfile({
+      ...base,
+      profileKey: 'volunteers_aggregate',
+      header: ['Date of Project', 'Organization Name', '# of Volunteers', 'Project Hours', 'Total Hours', 'Notes'],
+      dataRows: [['2026-06-01', 'Synthetic Group', 6, 2, 12, 'Synthetic note']],
+    })
+    expect(group.metrics.find((m) => m.metric_key === 'volunteers_total')?.value).toBe(6)
+    expect(group.metrics.find((m) => m.metric_key === 'volunteer_hours')?.value).toBe(12)
+    const raw = JSON.stringify(group.importRows[0].raw)
+    expect(raw).not.toContain('Synthetic Group')
+    expect(raw).not.toContain('Synthetic note')
   })
 
   it('imports development, finance, and HR aggregate rows', () => {

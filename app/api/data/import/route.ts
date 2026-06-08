@@ -86,6 +86,8 @@ export async function POST(req: Request) {
     batchId,
     header,
     dataRows,
+    fallbackPeriodLabel: periodLabelInput || null,
+    contextLabel: sheetName || file.name || sourceSlug,
   })
   if (profiled.handled) {
     if (profiled.metrics.length) {

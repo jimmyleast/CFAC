@@ -36,6 +36,8 @@ type ProfileImportInput = {
   batchId: string
   header: string[]
   dataRows: unknown[][]
+  fallbackPeriodLabel?: string | null
+  contextLabel?: string | null
 }
 
 function slugifyKey(h: string) {
@@ -63,21 +65,29 @@ function cleanBucket(value: unknown, fallback = 'Unspecified'): string {
   return redactPHI(s).slice(0, 80)
 }
 
-function monthFrom(value: unknown): { label: string; start: string } | null {
+function monthFrom(value: unknown, ...hints: unknown[]): { label: string; start: string } | null {
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
     const y = value.getUTCFullYear()
     const m = String(value.getUTCMonth() + 1).padStart(2, '0')
     return { label: `${y}-${m}`, start: `${y}-${m}-01` }
   }
   const raw = String(value ?? '').trim()
-  if (!raw) return null
-  const parsed = new Date(raw)
-  if (!Number.isNaN(parsed.getTime())) {
+  const parsed = raw ? new Date(raw) : null
+  if (parsed && !Number.isNaN(parsed.getTime())) {
     const y = parsed.getUTCFullYear()
     const m = String(parsed.getUTCMonth() + 1).padStart(2, '0')
     return { label: `${y}-${m}`, start: `${y}-${m}-01` }
   }
-  const y = raw.match(/\b(20\d{2}|19\d{2})\b/)?.[1]
+  const joinedHints = hints.map((h) => String(h ?? '').trim()).filter(Boolean).join(' ')
+  const joined = `${raw} ${joinedHints}`.trim()
+  const y = joined.match(/\b(20\d{2}|19\d{2})\b/)?.[1]
+  const monthToken = joined.match(/\b(jan(?:uary)?|feb(?:ruary|urary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember|emeber)?)\b/i)?.[1]
+  if (y && monthToken) {
+    const key = monthToken.slice(0, 3).toLowerCase()
+    const monthMap: Record<string, string> = { jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06', jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12' }
+    const m = monthMap[key]
+    if (m) return { label: `${y}-${m}`, start: `${y}-${m}-01` }
+  }
   return y ? { label: y, start: `${y}-01-01` } : null
 }
 
@@ -222,11 +232,11 @@ const AGGREGATE_CONFIGS: AggregateProfileConfig[] = [
     dateAliases: ['Date', 'Training Date', 'Start time'],
     rowCountMetric: { key: 'education_trainings_total', label: 'Education trainings' },
     buckets: [
-      { metricKey: 'education_trainings_by_type', label: 'Education trainings by type', dimension: 'training_type', aliases: ['Training Type', 'Type', 'Topic'] },
+      { metricKey: 'education_trainings_by_type', label: 'Education trainings by type', dimension: 'training_type', aliases: ['Training Type', 'Type', 'Topic', 'Presentation'] },
       { metricKey: 'education_trainings_by_audience', label: 'Education trainings by audience', dimension: 'audience', aliases: ['Audience', 'Audience Type'] },
     ],
-    sums: [{ metricKey: 'education_attendees', label: 'Education attendees', aliases: ['Attendees', 'Attendance', 'People Trained', 'Reach'] }],
-    safeRawBuckets: [{ key: 'training_type', aliases: ['Training Type', 'Type', 'Topic'] }, { key: 'audience', aliases: ['Audience', 'Audience Type'] }],
+    sums: [{ metricKey: 'education_attendees', label: 'Education attendees', aliases: ['Attendees', 'Attendance', 'People Trained', 'Reach', 'Total People', 'Total People Trained'] }],
+    safeRawBuckets: [{ key: 'training_type', aliases: ['Training Type', 'Type', 'Topic', 'Presentation'] }, { key: 'audience', aliases: ['Audience', 'Audience Type'] }],
   },
   {
     profileKey: 'community_engagement_aggregate',
@@ -234,20 +244,20 @@ const AGGREGATE_CONFIGS: AggregateProfileConfig[] = [
     rowCountMetric: { key: 'community_events_total', label: 'Community events' },
     buckets: [{ metricKey: 'community_events_by_type', label: 'Community events by type', dimension: 'event_type', aliases: ['Event Type', 'Type', 'Activity Type'] }],
     sums: [
-      { metricKey: 'community_event_attendance', label: 'Community event attendance', aliases: ['Attendance', 'Attendees', 'Reach'] },
+      { metricKey: 'community_event_attendance', label: 'Community event attendance', aliases: ['Attendance', 'Attendees', 'Reach', 'Event Attendees', 'Tour Attendees'] },
       { metricKey: 'community_leads', label: 'Community leads', aliases: ['Leads', 'New Leads'] },
-      { metricKey: 'community_conversions', label: 'Community conversions', aliases: ['Conversions', 'Converted'] },
+      { metricKey: 'community_conversions', label: 'Community conversions', aliases: ['Conversions', 'Converted', 'Engagement Conversion'] },
     ],
     safeRawBuckets: [{ key: 'event_type', aliases: ['Event Type', 'Type', 'Activity Type'] }],
   },
   {
     profileKey: 'volunteers_aggregate',
-    dateAliases: ['Date', 'Volunteer Date', 'Start time'],
+    dateAliases: ['Date', 'Volunteer Date', 'Date of Project', 'Date of Event', 'Start time'],
     rowCountMetric: { key: 'volunteer_entries_total', label: 'Volunteer entries' },
     buckets: [{ metricKey: 'volunteers_by_type', label: 'Volunteers by type', dimension: 'volunteer_type', aliases: ['Volunteer Type', 'Type', 'Group/Individual'] }],
     sums: [
-      { metricKey: 'volunteers_total', label: 'Volunteers', aliases: ['Volunteers', 'Volunteer Count', 'Count'] },
-      { metricKey: 'volunteer_hours', label: 'Volunteer hours', aliases: ['Hours', 'Volunteer Hours'], unit: 'hours' },
+      { metricKey: 'volunteers_total', label: 'Volunteers', aliases: ['Volunteers', 'Volunteer Count', 'Count', '# of Volunteers'] },
+      { metricKey: 'volunteer_hours', label: 'Volunteer hours', aliases: ['Hours', 'Volunteer Hours', 'Total Hours', 'Project Hours'], unit: 'hours' },
     ],
     safeRawBuckets: [{ key: 'volunteer_type', aliases: ['Volunteer Type', 'Type', 'Group/Individual'] }],
   },
@@ -291,7 +301,7 @@ function importConfiguredAggregate(input: ProfileImportInput, config: AggregateP
   const importRows: ImportAuditRow[] = []
 
   input.dataRows.forEach((row, rowIndex) => {
-    const period = monthFrom(cell(row, dateIdx))
+    const period = monthFrom(cell(row, dateIdx), input.fallbackPeriodLabel, input.contextLabel)
     const issues = period ? [] : ['missing usable period']
     if (config.rowCountMetric) metrics.push(metric(input.sourceId, config.rowCountMetric.key, config.rowCountMetric.label, 1, period))
     for (const b of config.buckets || []) {
