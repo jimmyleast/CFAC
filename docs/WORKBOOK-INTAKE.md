@@ -34,9 +34,25 @@ C:\Users\jhhea\.vscode\CFAC\_private\workbook-inventory.json
 
 It records workbook names, sheet names, estimated row counts, and header names only. It intentionally does not export cell values.
 
+## Inventory Formulas
+
+Run:
+
+```bash
+npm run workbooks:formulas -- "C:\Users\jhhea\Documents\CFAC"
+```
+
+The script writes:
+
+```text
+C:\Users\jhhea\.vscode\CFAC\_private\workbook-formulas.json
+```
+
+It records formula strings, cell addresses, formula categories, and cross-sheet references. It does not export cached formula results or ordinary cell values.
+
 ## PHI Boundary
 
-These workbook families may contain case-level PHI or client narratives and must not be imported into the live aggregate app until the HIPAA/BAA infrastructure gate is open:
+These workbook families may contain case-level PHI or client narratives. Their raw detail tabs must not be imported into the live aggregate app until the HIPAA/BAA infrastructure gate is open:
 
 - CARP / Collaborate case exports
 - Mental Health
@@ -44,4 +60,4 @@ These workbook families may contain case-level PHI or client narratives and must
 - MDT / case review
 - Medical or forensic service detail
 
-For now, use only aggregate/non-PHI tabs or rows through the manual upload and SharePoint workbook pipeline.
+For now, load their dashboard/summary aggregate tabs and other aggregate/non-PHI rows through the manual upload and SharePoint workbook pipeline.
