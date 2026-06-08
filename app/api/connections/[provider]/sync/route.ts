@@ -2,8 +2,10 @@ import { NextResponse } from 'next/server'
 import { getAdminClient } from '@/lib/admin'
 import { requireAdmin } from '@/lib/auth/aal'
 import { emitAppEvent } from '@/lib/telemetry/events'
-import { runSync } from '@/lib/connectors/sync'
+import { resolveCreds, runSync } from '@/lib/connectors/sync'
 import { CONNECTORS } from '@/lib/connectors/impl'
+import { getProvider } from '@/lib/connectors/providers'
+import { syncSharePointProfiledWorkbooks } from '@/lib/connectors/sharepointExcel'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -16,7 +18,26 @@ export async function POST(_req: Request, { params }: { params: { provider: stri
   // Validate the path param before it reaches the DB / audit log.
   if (!/^[a-z0-9_-]{1,40}$/.test(params.provider)) return NextResponse.json({ error: 'unknown provider' }, { status: 404 })
 
-  const result = await runSync(getAdminClient(), params.provider, CONNECTORS, Date.now())
+  const admin = getAdminClient()
+  let result: { ok: boolean; rows?: number; error?: string; skipped?: boolean; empty?: boolean }
+  if (params.provider === 'microsoft_sharepoint') {
+    const provider = getProvider('microsoft_sharepoint')
+    const { data: conn } = await admin.from('connections').select('*').eq('provider', 'microsoft_sharepoint').maybeSingle()
+    if (!provider || !conn || conn.status !== 'connected') {
+      result = { ok: false, error: 'not connected' }
+    } else {
+      try {
+        const creds = await resolveCreds(admin, conn, provider, Date.now())
+        if (!creds.accessToken) throw new Error('no access token stored')
+        const r = await syncSharePointProfiledWorkbooks(admin, creds.accessToken, gate.user.id)
+        result = { ok: r.ok, rows: r.metrics, empty: r.workbooks === 0 || r.metrics === 0, error: r.errors.map((e) => `${e.name}: ${e.error}`).join('; ') || undefined }
+      } catch (e) {
+        result = { ok: false, error: e instanceof Error ? e.message : 'sharepoint sync failed' }
+      }
+    }
+  } else {
+    result = await runSync(admin, params.provider, CONNECTORS, Date.now())
+  }
 
   // A lock-skip is a benign no-op (a concurrent run is already syncing), not a
   // failure — log it as system/skipped (neutral) so red stays reserved for real

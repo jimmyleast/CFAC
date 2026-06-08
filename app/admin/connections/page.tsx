@@ -28,6 +28,12 @@ type FileSource = {
   profileKey: string | null; lastImportedAt: string | null; metricCount: number; issueCount: number
 }
 type SourceProfile = { key: string; name: string; mode: string; description: string }
+type WorkbookBinding = {
+  id: string; display_name: string; source_profile_key: string; drive_id: string; item_id: string
+  worksheet_name: string | null; range_address: string | null; table_name: string | null
+  enabled: boolean; last_sync_at: string | null; last_error: string | null
+  data_sources?: { name?: string; slug?: string } | null
+}
 
 async function authFetch(url: string, opts: RequestInit = {}) {
   const supabase = createClient()
@@ -51,15 +57,19 @@ function Inner() {
   const [newName, setNewName] = useState('')
   const [newKind, setNewKind] = useState('spreadsheet')
   const [newProfileKey, setNewProfileKey] = useState('')
+  const [workbooks, setWorkbooks] = useState<WorkbookBinding[]>([])
+  const [wbDraft, setWbDraft] = useState({ sourceSlug: '', profileKey: '', displayName: '', driveId: '', itemId: '', worksheetName: '', rangeAddress: '', tableName: '' })
+  const [addingWorkbook, setAddingWorkbook] = useState(false)
   const [creating, setCreating] = useState(false)
   const [inviteLink, setInviteLink] = useState<{ provider: string; link: string } | null>(null)
 
   async function load() {
     setLoading(true); setErr(null)
     try {
-      const [cRes, sRes, roleRes] = await Promise.all([
+      const [cRes, sRes, wbRes, roleRes] = await Promise.all([
         authFetch('/api/connections'),
         authFetch('/api/data/sources').catch(() => null),
+        authFetch('/api/sharepoint/workbooks').catch(() => null),
         authFetch('/api/user/role').catch(() => null),
       ])
       if (cRes.status === 401) { setErr('Please sign in.'); setLoading(false); return }
@@ -67,6 +77,7 @@ function Inner() {
       const d = await cRes.json()
       setProviders(d.providers || []); setEncryptionReady(d.encryptionReady !== false)
       if (sRes?.ok) { const sd = await sRes.json(); setSources(sd.sources || []); setProfiles(sd.profiles || []) }
+      if (wbRes?.ok) { const wd = await wbRes.json(); setWorkbooks(wd.workbooks || []) }
       if (roleRes?.ok) { const r = await roleRes.json(); setIsAdmin(r.role === 'admin') }
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)) } finally { setLoading(false) }
   }
@@ -81,6 +92,23 @@ function Inner() {
       if (!res.ok) { const e = await res.json().catch(() => ({})); alert(e.error || `Failed (${res.status})`) }
       else { setNewName(''); setNewProfileKey(''); await load() }
     } finally { setCreating(false) }
+  }
+
+  async function addWorkbook() {
+    if (!wbDraft.sourceSlug || !wbDraft.profileKey || !wbDraft.displayName.trim() || !wbDraft.driveId.trim() || !wbDraft.itemId.trim()) return
+    setAddingWorkbook(true)
+    try {
+      const res = await authFetch('/api/sharepoint/workbooks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(wbDraft),
+      })
+      if (!res.ok) { const e = await res.json().catch(() => ({})); alert(e.error || `Failed (${res.status})`) }
+      else {
+        setWbDraft({ sourceSlug: '', profileKey: '', displayName: '', driveId: '', itemId: '', worksheetName: '', rangeAddress: '', tableName: '' })
+        await load()
+      }
+    } finally { setAddingWorkbook(false) }
   }
 
   async function connectApiKey(id: string) {
@@ -269,6 +297,49 @@ function Inner() {
             ))}
             {!sources.length && <div style={{ color: TEXT4, fontSize: 13, fontStyle: 'italic' }}>No file sources yet.{isAdmin ? ' Add one above.' : ''}</div>}
           </div>
+
+          {isAdmin && (
+            <div style={{ marginTop: 28 }}>
+              <h3 style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 16, color: TEXT, margin: '0 0 4px' }}>SharePoint Excel bindings</h3>
+              <p style={{ color: TEXT2, fontSize: 12.5, margin: '0 0 12px', maxWidth: 640 }}>
+                Connected workbooks use the same source profiles as manual uploads. Register only aggregate/non-PHI workbook ranges or tables.
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8, marginBottom: 10 }}>
+                <select value={wbDraft.sourceSlug} onChange={(e) => {
+                  const src = sources.find((s) => s.slug === e.target.value)
+                  setWbDraft({ ...wbDraft, sourceSlug: e.target.value, profileKey: src?.profileKey || wbDraft.profileKey })
+                }} style={{ background: '#0D0D0F', border: `1px solid ${LINE}`, borderRadius: 8, color: TEXT, fontSize: 12, padding: '8px 10px' }}>
+                  <option value="">Source</option>
+                  {sources.filter((s) => s.profileKey).map((s) => <option key={s.slug} value={s.slug}>{s.name}</option>)}
+                </select>
+                <select value={wbDraft.profileKey} onChange={(e) => setWbDraft({ ...wbDraft, profileKey: e.target.value })} style={{ background: '#0D0D0F', border: `1px solid ${LINE}`, borderRadius: 8, color: TEXT, fontSize: 12, padding: '8px 10px' }}>
+                  <option value="">Profile</option>
+                  {profiles.map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
+                </select>
+                <input value={wbDraft.displayName} onChange={(e) => setWbDraft({ ...wbDraft, displayName: e.target.value })} placeholder="Binding name" style={{ background: '#0D0D0F', border: `1px solid ${LINE}`, borderRadius: 8, color: TEXT, fontSize: 12, padding: '8px 10px' }} />
+                <input value={wbDraft.driveId} onChange={(e) => setWbDraft({ ...wbDraft, driveId: e.target.value })} placeholder="Drive ID" style={{ background: '#0D0D0F', border: `1px solid ${LINE}`, borderRadius: 8, color: TEXT, fontSize: 12, padding: '8px 10px' }} />
+                <input value={wbDraft.itemId} onChange={(e) => setWbDraft({ ...wbDraft, itemId: e.target.value })} placeholder="Item ID" style={{ background: '#0D0D0F', border: `1px solid ${LINE}`, borderRadius: 8, color: TEXT, fontSize: 12, padding: '8px 10px' }} />
+                <input value={wbDraft.tableName} onChange={(e) => setWbDraft({ ...wbDraft, tableName: e.target.value })} placeholder="Table name" style={{ background: '#0D0D0F', border: `1px solid ${LINE}`, borderRadius: 8, color: TEXT, fontSize: 12, padding: '8px 10px' }} />
+                <input value={wbDraft.worksheetName} onChange={(e) => setWbDraft({ ...wbDraft, worksheetName: e.target.value })} placeholder="Worksheet" style={{ background: '#0D0D0F', border: `1px solid ${LINE}`, borderRadius: 8, color: TEXT, fontSize: 12, padding: '8px 10px' }} />
+                <input value={wbDraft.rangeAddress} onChange={(e) => setWbDraft({ ...wbDraft, rangeAddress: e.target.value })} placeholder="Range, e.g. A1:L200" style={{ background: '#0D0D0F', border: `1px solid ${LINE}`, borderRadius: 8, color: TEXT, fontSize: 12, padding: '8px 10px' }} />
+              </div>
+              <button disabled={addingWorkbook || !wbDraft.sourceSlug || !wbDraft.profileKey || !wbDraft.displayName.trim() || !wbDraft.driveId.trim() || !wbDraft.itemId.trim()} onClick={addWorkbook}
+                style={{ background: GOLD, color: '#0D0D0F', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', marginBottom: 12 }}>
+                {addingWorkbook ? 'Adding…' : 'Add binding'}
+              </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {workbooks.map((w) => (
+                  <div key={w.id} style={{ background: BG2, border: `1px solid ${LINE}`, borderRadius: 8, padding: '10px 12px', fontSize: 12, color: TEXT2 }}>
+                    <span style={{ color: TEXT, fontWeight: 600 }}>{w.display_name}</span>
+                    <span> · {w.data_sources?.name || 'source'} · {w.source_profile_key}</span>
+                    <span> · {w.table_name ? `table ${w.table_name}` : `${w.worksheet_name || 'sheet'} ${w.range_address || ''}`}</span>
+                    {w.last_error && <span style={{ color: WARN }}> · {w.last_error}</span>}
+                  </div>
+                ))}
+                {!workbooks.length && <div style={{ color: TEXT4, fontSize: 12, fontStyle: 'italic' }}>No connected workbook bindings yet.</div>}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

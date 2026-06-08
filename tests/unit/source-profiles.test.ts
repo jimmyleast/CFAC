@@ -45,7 +45,7 @@ describe('profile imports', () => {
       ...base,
       profileKey: 'maintenance_request_2026',
       header: ['Date', 'Email', 'Name', 'Description of Maintenance Request with Detail', 'Request Type', 'Priority', 'Status', 'On Time?', 'Actual Cost'],
-      dataRows: [['2026-01-05', 'staff@cfac.org', 'Jane Staff', 'Fix sink near room 2', 'Plumbing', 'High', 'Complete', 'Yes', '$120.00']],
+      dataRows: [['2026-01-05', 'staff@example.test', 'Test Staff', 'Synthetic maintenance narrative', 'Plumbing', 'High', 'Complete', 'Yes', '$120.00']],
     })
     expect(out.metricKeys).toContain('maintenance_requests_total')
     expect(out.metricKeys).toContain('maintenance_actual_cost')
@@ -53,9 +53,9 @@ describe('profile imports', () => {
     expect(out.metrics.find((m) => m.metric_key === 'maintenance_requests_by_type')?.value).toBe(1)
     const raw = JSON.stringify(out.importRows[0].raw)
     expect(raw).toContain('aggregate_only')
-    expect(raw).not.toContain('staff@cfac.org')
-    expect(raw).not.toContain('Jane Staff')
-    expect(raw).not.toContain('Fix sink')
+    expect(raw).not.toContain('staff@example.test')
+    expect(raw).not.toContain('Test Staff')
+    expect(raw).not.toContain('Synthetic maintenance narrative')
   })
 
   it('rolls up repeated maintenance buckets instead of creating duplicate dimension rows', () => {
@@ -78,15 +78,15 @@ describe('profile imports', () => {
       ...base,
       profileKey: 'fleet_management_2026',
       header: ['Date of Vehicle Use', 'Name of Driver', 'Vehicle Type', 'Purpose of Travel', 'Location', 'Miles Driven', '1/2 Tank of Fuel?', 'List and describe any maintenance issues'],
-      dataRows: [['2026-02-03', 'Driver One', 'Van', 'Residential Client', 'Court building', 42, 'No', 'Tire light']],
+      dataRows: [['2026-02-03', 'Synthetic Driver', 'Van', 'Residential Client', 'Synthetic destination', 42, 'No', 'Synthetic issue']],
     })
     expect(out.metricKeys).toContain('fleet_trips_total')
     expect(out.metricKeys).toContain('fleet_miles_driven')
     expect(out.metricKeys).toContain('fleet_low_fuel_returns')
     expect(out.metrics.find((m) => m.metric_key === 'fleet_trips_by_purpose')?.dimension).toEqual({ purpose: 'Residential Client' })
     const raw = JSON.stringify(out.importRows[0].raw)
-    expect(raw).not.toContain('Driver One')
-    expect(raw).not.toContain('Court building')
-    expect(raw).not.toContain('Tire light')
+    expect(raw).not.toContain('Synthetic Driver')
+    expect(raw).not.toContain('Synthetic destination')
+    expect(raw).not.toContain('Synthetic issue')
   })
 })

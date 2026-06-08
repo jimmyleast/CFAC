@@ -28,6 +28,7 @@ export type AppEventName =
   | 'data.quality.duplicates'
   | 'connection.changed'
   | 'source.created'
+  | 'sharepoint.workbook.registered'
   | 'connect_invite.created'
   | 'connection.synced'
   | 'case.status_changed'
