@@ -49,11 +49,28 @@ describe('profile imports', () => {
     })
     expect(out.metricKeys).toContain('maintenance_requests_total')
     expect(out.metricKeys).toContain('maintenance_actual_cost')
+    expect(out.metrics.filter((m) => m.metric_key === 'maintenance_requests_by_type')).toHaveLength(1)
+    expect(out.metrics.find((m) => m.metric_key === 'maintenance_requests_by_type')?.value).toBe(1)
     const raw = JSON.stringify(out.importRows[0].raw)
     expect(raw).toContain('aggregate_only')
     expect(raw).not.toContain('staff@cfac.org')
     expect(raw).not.toContain('Jane Staff')
     expect(raw).not.toContain('Fix sink')
+  })
+
+  it('rolls up repeated maintenance buckets instead of creating duplicate dimension rows', () => {
+    const out = importWithSourceProfile({
+      ...base,
+      profileKey: 'maintenance_request_2026',
+      header: ['Date', 'Request Type', 'Priority', 'Status'],
+      dataRows: [
+        ['2026-01-05', 'Plumbing', 'High', 'Open'],
+        ['2026-01-06', 'Plumbing', 'High', 'Open'],
+      ],
+    })
+    const byType = out.metrics.find((m) => m.metric_key === 'maintenance_requests_by_type')
+    expect(byType?.value).toBe(2)
+    expect(byType?.dimension).toEqual({ request_type: 'Plumbing' })
   })
 
   it('aggregates fleet rows without storing driver names or locations', () => {
@@ -66,6 +83,7 @@ describe('profile imports', () => {
     expect(out.metricKeys).toContain('fleet_trips_total')
     expect(out.metricKeys).toContain('fleet_miles_driven')
     expect(out.metricKeys).toContain('fleet_low_fuel_returns')
+    expect(out.metrics.find((m) => m.metric_key === 'fleet_trips_by_purpose')?.dimension).toEqual({ purpose: 'Residential Client' })
     const raw = JSON.stringify(out.importRows[0].raw)
     expect(raw).not.toContain('Driver One')
     expect(raw).not.toContain('Court building')

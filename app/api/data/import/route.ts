@@ -89,8 +89,8 @@ export async function POST(req: Request) {
   })
   if (profiled.handled) {
     if (profiled.metrics.length) {
-      const { error } = await admin.from('metrics').insert(profiled.metrics)
-      if (error) return NextResponse.json({ error: 'metrics insert failed: ' + error.message }, { status: 500 })
+      const { error } = await admin.rpc('replace_source_metrics', { p_source_id: sourceId, p_rows: profiled.metrics })
+      if (error) return NextResponse.json({ error: 'metrics swap failed: ' + error.message }, { status: 500 })
     }
     if (profiled.importRows.length) await admin.from('import_rows').insert(profiled.importRows)
     await admin.from('data_sources').update({ last_imported_at: new Date().toISOString() }).eq('id', sourceId)
