@@ -22,6 +22,10 @@ export type AppEventName =
   | 'definition.updated'
   | 'mapping.changed'
   | 'data.exceptions.scanned'
+  // Double-counting specifically detected (within- or cross-source duplicate metric
+  // facts). Alertable on its own so a doubled impact metric is caught by ops, not by
+  // a board member noticing — see app/api/data/exceptions/route.ts.
+  | 'data.quality.duplicates'
   | 'connection.changed'
   | 'source.created'
   | 'connect_invite.created'

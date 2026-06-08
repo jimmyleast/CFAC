@@ -47,5 +47,25 @@ export async function GET(req: Request) {
     metadata: { errors: summary.errors, warnings: summary.warnings, byRule: summary.byRule, scanIncomplete },
   }).catch(() => {})
 
+  // Dedicated, alertable signal for double-counting specifically (within- or
+  // cross-source). Buried in byRule it's easy to miss; emitted on its own it can be
+  // alerted on so a board member never discovers a doubled impact metric first.
+  const dupWithin = summary.byRule.duplicate_metric || 0
+  const dupCross = summary.byRule.duplicate_cross_source || 0
+  if (dupWithin + dupCross > 0) {
+    const dups = exceptions.filter((e) => e.rule === 'duplicate_metric' || e.rule === 'duplicate_cross_source')
+    // Split cross-source by severity so an alert can page on a definite double-count
+    // (identical totals from >1 source) vs merely review a possible-intended sum.
+    const crossErrors = dups.filter((e) => e.rule === 'duplicate_cross_source' && e.severity === 'error').length
+    void emitAppEvent({
+      eventName: 'data.quality.duplicates', category: 'quality', userId: auth.user.id, route: '/api/data/exceptions',
+      status: crossErrors > 0 ? 'double_count' : 'detected',
+      metadata: {
+        withinSource: dupWithin, crossSource: dupCross, crossSourceErrors: crossErrors,
+        examples: dups.slice(0, 5).map((e) => ({ rule: e.rule, severity: e.severity, metricKey: e.metricKey, period: e.fieldRef, source: e.sourceName })),
+      },
+    }).catch(() => {})
+  }
+
   return NextResponse.json(payload)
 }

@@ -36,6 +36,71 @@ describe('detectExceptions', () => {
     }))).not.toContain('duplicate_metric')
   })
 
+  it('flags cross-source duplicate totals as an ERROR when values are identical (double-count)', () => {
+    const sources = [{ id: 's1', name: 'Impact Through the Years', last_imported_at: '2026-01-01' }, { id: 's2', name: 'CFAC Impact', last_imported_at: '2026-01-01' }]
+    const ex = detectExceptions(base({
+      sources,
+      metrics: [
+        { source_id: 's1', metric_key: 'children_served', label: 'Children Served', value: 1007, period_label: '2019', period_start: '2019-01-01', dimension: {} },
+        { source_id: 's2', metric_key: 'children_served', label: 'Children Served', value: 1007, period_label: '2019', period_start: '2019-01-01', dimension: {} },
+      ],
+    }))
+    const cs = ex.filter((e) => e.rule === 'duplicate_cross_source')
+    expect(cs).toHaveLength(1)
+    expect(cs[0].severity).toBe('error')
+    expect(cs[0].metricKey).toBe('children_served')
+  })
+
+  it('catches cross-source double-count when sources LABEL the same period differently (groups on period_start)', () => {
+    const sources = [{ id: 's1', name: 'A', last_imported_at: '2026-01-01' }, { id: 's2', name: 'B', last_imported_at: '2026-01-01' }]
+    const ex = detectExceptions(base({
+      sources,
+      metrics: [
+        { source_id: 's1', metric_key: 'served', label: 'Served', value: 100, period_label: '2025', period_start: '2025-01-01', dimension: {} },
+        { source_id: 's2', metric_key: 'served', label: 'Served', value: 100, period_label: 'FY2025', period_start: '2025-01-01', dimension: {} },
+      ],
+    }))
+    const cs = ex.filter((e) => e.rule === 'duplicate_cross_source')
+    expect(cs).toHaveLength(1) // same period_start, different labels → still caught
+    expect(cs[0].severity).toBe('error')
+  })
+
+  it('flags cross-source same key+period with DIFFERENT values as a warning (verify intended sum)', () => {
+    const sources = [{ id: 's1', name: 'Intake A', last_imported_at: '2026-01-01' }, { id: 's2', name: 'Intake B', last_imported_at: '2026-01-01' }]
+    const ex = detectExceptions(base({
+      sources,
+      metrics: [
+        { source_id: 's1', metric_key: 'served', label: 'Served', value: 100, period_label: '2025', period_start: '2025-01-01', dimension: {} },
+        { source_id: 's2', metric_key: 'served', label: 'Served', value: 50, period_label: '2025', period_start: '2025-01-01', dimension: {} },
+      ],
+    }))
+    const cs = ex.filter((e) => e.rule === 'duplicate_cross_source')
+    expect(cs).toHaveLength(1)
+    expect(cs[0].severity).toBe('warning')
+  })
+
+  it('does NOT flag cross-source when only ONE source emits the total', () => {
+    const sources = [{ id: 's1', name: 'A', last_imported_at: '2026-01-01' }]
+    expect(rulesOf(base({
+      sources,
+      metrics: [
+        { source_id: 's1', metric_key: 'served', label: 'Served', value: 100, period_label: '2025', period_start: '2025-01-01', dimension: {} },
+        { source_id: 's1', metric_key: 'served', label: 'Served', value: 120, period_label: '2026', period_start: '2026-01-01', dimension: {} },
+      ],
+    }))).not.toContain('duplicate_cross_source')
+  })
+
+  it('does NOT cross-source-flag dimension breakdowns (totals only)', () => {
+    const sources = [{ id: 's1', name: 'A', last_imported_at: '2026-01-01' }, { id: 's2', name: 'B', last_imported_at: '2026-01-01' }]
+    expect(rulesOf(base({
+      sources,
+      metrics: [
+        { source_id: 's1', metric_key: 'served', label: 'Served', value: 100, period_label: '2025', period_start: '2025-01-01', dimension: { program: 'a' } },
+        { source_id: 's2', metric_key: 'served', label: 'Served', value: 100, period_label: '2025', period_start: '2025-01-01', dimension: { program: 'b' } },
+      ],
+    }))).not.toContain('duplicate_cross_source')
+  })
+
   it('flags missing value when a period has no usable number', () => {
     const ex = rulesOf(base({ metrics: [{ source_id: 's1', metric_key: 'reach', label: 'Reach', value: null, period_label: '2025', period_start: '2025-01-01', dimension: {} }] }))
     expect(ex).toContain('missing_value')

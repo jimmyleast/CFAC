@@ -1,5 +1,7 @@
 // EOS Scorecard goal evaluation. Pure + testable.
 
+import { canonicalDimKey as dimKey } from '@/lib/metrics/dimension'
+
 export type GoalDirection = 'at_least' | 'at_most'
 export type GoalStatus = 'on' | 'off' | 'unknown'
 
@@ -13,18 +15,6 @@ export function evaluateGoal(actual: number | null | undefined, goal: number | n
 export type ScorecardPoint = { period: string; value: number }
 
 type Row = { metric_key: string; value: number | string | null; period_label: string | null; period_start: string | null; source_id?: string | null; dimension?: unknown }
-
-/** Canonical (key-order-independent) hash of a metric's dimension jsonb, or '' for a total row. */
-function dimKey(dimension: unknown): string {
-  if (!dimension || typeof dimension !== 'object') return ''
-  try {
-    const entries = Object.entries(dimension as Record<string, unknown>)
-    if (!entries.length) return ''
-    return JSON.stringify(entries.sort(([a], [b]) => a.localeCompare(b)))
-  } catch {
-    return ''
-  }
-}
 
 /** Build the recent N points (ascending by period) for a metric_key from raw metric rows.
  *

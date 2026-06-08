@@ -3,6 +3,8 @@
 // staff combing 12 spreadsheets by hand. Aggregate metadata only (no client PII).
 // Computed live (always current); the API supplies DB data + a clock.
 
+import { canonicalDimKey } from '@/lib/metrics/dimension'
+
 export type ExSeverity = 'error' | 'warning'
 export type Exception = {
   rule: string
@@ -39,9 +41,10 @@ export const STALE_DAYS = 180
 const OUTLIER_HI = 5 // latest ≥ 5× prior
 const OUTLIER_LO = 0.2 // or ≤ 1/5× prior
 
-function dimKey(d: unknown): string {
-  try { return d && typeof d === 'object' && Object.keys(d as object).length ? JSON.stringify(d) : '' } catch { return '' }
-}
+// Shared with the scorecard so both model "the same series" identically (sorted,
+// key-order-independent). Divergent hashing would let a collision the scorecard
+// merges go unflagged here.
+const dimKey = canonicalDimKey
 function isMissing(v: unknown): boolean {
   return v === null || v === undefined || v === '' || !Number.isFinite(Number(v))
 }
@@ -62,6 +65,45 @@ export function detectExceptions(input: DetectInput): Exception[] {
     if (n > 1) {
       const [sid, key, period] = id.split('|')
       out.push({ rule: 'duplicate_metric', severity: 'error', sourceId: sid || null, sourceName: nameById.get(sid) || null, metricKey: key, fieldRef: period, message: `Duplicate: ${key} for ${period} appears ${n}× — risks double-counting.` })
+    }
+  }
+
+  // 1b. Cross-source duplicate: the SAME total (dimension-empty) metric_key + period
+  // emitted by MORE THAN ONE source. The dashboard/scorecard SUM totals across
+  // sources, so this double-counts (e.g. the same workbook loaded under two source
+  // slugs). The within-source rule above can't see this (different source_id).
+  // Identical values → almost certainly an accidental duplicate (error); differing
+  // values → may be a legitimate multi-source sum, flag to confirm (warning).
+  // Group on period_start (NOT period_label) because the scorecard buckets/sums on
+  // period_start — two sources labelling the same period differently ("2025" vs
+  // "FY2025") still double-count, and must be caught.
+  const crossSource = new Map<string, { label: string; sources: Set<string>; values: Set<number> }>()
+  for (const m of metrics) {
+    if (!m.period_start || isMissing(m.value)) continue
+    if (dimKey(m.dimension) !== '') continue // totals only — breakdowns legitimately repeat
+    const id = `${m.metric_key}|${m.period_start}`
+    const g = crossSource.get(id) || { label: m.period_label || m.period_start, sources: new Set<string>(), values: new Set<number>() }
+    g.sources.add(m.source_id || '')
+    g.values.add(Number(m.value))
+    crossSource.set(id, g)
+  }
+  for (const [id, g] of crossSource) {
+    if (g.sources.size > 1) {
+      const key = id.split('|')[0]
+      const identical = g.values.size === 1
+      const names = [...g.sources].map((s) => nameById.get(s) || 'unknown').join(', ')
+      out.push({
+        rule: 'duplicate_cross_source',
+        // Identical totals from >1 source = almost certainly the same data loaded
+        // twice (error). Differing values = possibly a legitimate multi-source sum
+        // (warning). The error message asks to verify rather than prescribe deletion,
+        // since two real sources could coincidentally match.
+        severity: identical ? 'error' : 'warning',
+        sourceId: null, sourceName: names, metricKey: key, fieldRef: g.label,
+        message: identical
+          ? `Possible double-count: ${key} for ${g.label} is reported identically by ${g.sources.size} sources (${names}) — the dashboard sums these. Verify this isn't the same data loaded twice.`
+          : `${key} for ${g.label} comes from ${g.sources.size} sources (${names}) with different values — the dashboard sums them; confirm that's intended, not a duplicate.`,
+      })
     }
   }
 
