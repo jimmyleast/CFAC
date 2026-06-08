@@ -21,8 +21,9 @@ async function token() {
 
 const inputStyle: React.CSSProperties = {
   width: '100%', background: 'rgba(255,255,255,0.04)', border: `1px solid ${LINE}`,
-  borderRadius: 8, padding: '10px 12px', color: TEXT, fontSize: 14,
+  borderRadius: 8, padding: '10px 12px', color: TEXT, fontSize: 14, colorScheme: 'dark',
 }
+const optionStyle: React.CSSProperties = { background: '#141416', color: TEXT }
 const labelStyle: React.CSSProperties = { display: 'block', fontSize: 12, color: TEXT2, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }
 
 export default function DataImportPage() {
@@ -90,7 +91,7 @@ export default function DataImportPage() {
           <label style={labelStyle}>Data source</label>
           <select value={sourceSlug} onChange={e => setSourceSlug(e.target.value)} style={inputStyle}>
             <option value="">— select —</option>
-            {sources.map(s => <option key={s.slug} value={s.slug}>{s.name}</option>)}
+            {sources.map(s => <option key={s.slug} value={s.slug} style={optionStyle}>{s.name}</option>)}
           </select>
         </div>
         <div>

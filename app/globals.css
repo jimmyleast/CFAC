@@ -113,6 +113,12 @@ a { color: inherit; }
 img { max-width: 100%; }
 button, input, textarea, select { font: inherit; }
 
+select { color-scheme: dark; }
+select option {
+  background: #141416;
+  color: var(--text-primary);
+}
+
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: var(--bg-base); }
 ::-webkit-scrollbar-thumb { background: var(--border-strong); }

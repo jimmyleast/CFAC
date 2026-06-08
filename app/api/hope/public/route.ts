@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { generateAnthropic } from '@/lib/hope/providers'
 import { emitAppEvent, elapsedMs } from '@/lib/telemetry/events'
 import { rateLimit } from '@/lib/hope/ratelimit'
+import { containsPHI, redactPHI } from '@/lib/compliance/phi'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -18,6 +19,38 @@ Rules:
 - If someone indicates a child is in immediate danger, tell them to call 911 or the hotline (1-844-SAVE-A-CHILD) now.
 - Do NOT give legal or medical advice. Do NOT make up programs, statistics, names, or details you aren't sure of — direct them to contact CFAC instead.`
 
+const SAFE_HANDOFF =
+  'I can help with general CFAC information here, but I cannot review personal case details in chat. ' +
+  'If a child may be in danger, call 911 or 1-844-SAVE-A-CHILD now. For CFAC services, call 479-621-0385.'
+
+function looksLikePersonalCaseInfo(message: string): boolean {
+  const s = message.toLowerCase()
+  const personal = /\b(my|mine|me|i|our|us|child|daughter|son|niece|nephew|grandchild|student|client)\b/.test(s)
+  const caseSignal = /\b(abuse|abused|molest|molested|assault|victim|offender|perpetrator|case|detective|investigator|forensic|interview|court|custody|therapy|counseling|intake|report|hotline|asp|police|doctor|hospital|medical)\b/.test(s)
+  return personal && caseSignal
+}
+
+function safePublicAnswer(message: string): string {
+  const s = message.toLowerCase()
+  const prefix = 'I cannot review personal case details in chat, but here is general CFAC guidance: '
+  if (/\b(911|danger|emergency|unsafe|now|right now|threat|hurt|hurting)\b/.test(s)) {
+    return prefix + 'if a child may be in immediate danger, call 911 now. You can also call the child-abuse hotline at 1-844-SAVE-A-CHILD.'
+  }
+  if (/\b(forensic|interview)\b/.test(s)) {
+    return prefix + 'forensic interviews are handled through trained professionals and partner referrals so children can share information in a child-focused setting. For scheduling or case-specific questions, call CFAC at 479-621-0385.'
+  }
+  if (/\b(therapy|counseling|mental|medical|doctor|hospital)\b/.test(s)) {
+    return prefix + 'CFAC offers trauma-informed support and can help connect families with advocacy and counseling resources. For the right next step for a specific child or family, call 479-621-0385.'
+  }
+  if (/\b(court|custody|legal|lawyer|protective order)\b/.test(s)) {
+    return prefix + 'CFAC can provide advocacy and support, but this chat cannot give legal advice. For case-specific support, call CFAC at 479-621-0385.'
+  }
+  if (/\b(report|hotline|asp|police|detective|investigator)\b/.test(s)) {
+    return prefix + 'to report suspected child abuse in Arkansas, call 1-844-SAVE-A-CHILD. CFAC can help families understand advocacy and support services at 479-621-0385.'
+  }
+  return SAFE_HANDOFF
+}
+
 export async function POST(req: Request) {
   const startedAt = Date.now()
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
@@ -33,9 +66,14 @@ export async function POST(req: Request) {
 
   void emitAppEvent({ eventName: 'hope.chat.request', category: 'funnel', route: '/api/hope/public', status: 'started' })
 
+  if (containsPHI(message) || looksLikePersonalCaseInfo(message)) {
+    void emitAppEvent({ eventName: 'hope.chat.error', category: 'quality', route: '/api/hope/public', status: 'personal_info_blocked' })
+    return NextResponse.json({ message: safePublicAnswer(message) })
+  }
+
   // No client-supplied history (avoids prompt-injection via forged turns). Stateless.
   try {
-    const reply = await generateAnthropic(PUBLIC_SYSTEM, [{ role: 'user', content: message }], 350)
+    const reply = await generateAnthropic(PUBLIC_SYSTEM, [{ role: 'user', content: redactPHI(message) }], 350)
     void emitAppEvent({ eventName: 'hope.chat.response', category: 'latency', route: '/api/hope/public', status: 'ok', durationMs: elapsedMs(startedAt) })
     return NextResponse.json({ message: reply })
   } catch (err: any) {
