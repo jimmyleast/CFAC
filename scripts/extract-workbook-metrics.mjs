@@ -217,6 +217,41 @@ function isUnsafeLabel(label) {
   return /\b(name|contact information|notes?|tidbit|address|phone|email|dob|date of birth|ssn)\b/i.test(label)
 }
 
+function hasNumericValue(row) {
+  return row.some((cell) => toNum(cell) !== null && !excelDate(cell))
+}
+
+function textCells(row) {
+  return row.map(text).filter(Boolean)
+}
+
+function isSectionText(label) {
+  const value = text(label)
+  if (!value || toNum(value) !== null || excelDate(value) || isUnsafeLabel(value)) return false
+  if (/^(count|total count|total people|total attendees|filled|openings|yes|no|other|average|percentage|recipients|new subscribers|total sent)$/i.test(value)) return false
+  return /dashboard|year-to-date|ytd|pulse|summary|qtr|quarter|month|program|health|impact|hiring|staff|interns|inquiries|clients|volunteer|operations|marketing|education|xaya|reach|financial|organization|projects|referral|services|demographics|advocacy|maintenance|security|fleet|supply|social media|communications/i.test(value)
+    || (value === value.toUpperCase() && /[A-Z]/.test(value) && value.length > 2)
+}
+
+function sectionFromRow(row) {
+  if (hasNumericValue(row)) return null
+  const cells = textCells(row).filter(isSectionText)
+  if (!cells.length || cells.length > 6) return null
+  const joined = cells.join(' / ').slice(0, 120)
+  return isSectionText(joined) || cells.length > 1 ? joined : null
+}
+
+function sectionNearCell(rows, rowIndex, colIndex, fallback) {
+  for (let r = rowIndex - 1; r >= Math.max(0, rowIndex - 8); r--) {
+    const row = rows[r] || []
+    const sameColumn = text(row[colIndex])
+    if (isSectionText(sameColumn)) return sameColumn.slice(0, 120)
+    const section = sectionFromRow(row)
+    if (section) return section
+  }
+  return fallback || 'Metrics'
+}
+
 function labelForRow(row, periodColumns) {
   for (let i = 0; i < row.length; i++) {
     if (periodColumns.has(i)) continue
@@ -241,8 +276,14 @@ function extractDashboardTables(workbook, source, sheetNames, prefix) {
         if (isPeriodHeader(cell)) periodColumns.set(colIndex, periodFromHeader(cell))
       })
       if (!periodColumns.size) continue
+      let currentSection = sectionFromRow(rows[rowIndex - 1] || []) || 'Metrics'
       for (let r = rowIndex + 1; r < rows.length; r++) {
         const current = rows[r]
+        const section = sectionFromRow(current)
+        if (section) {
+          currentSection = section
+          continue
+        }
         const label = labelForRow(current, periodColumns)
         if (!label) continue
         for (const [colIndex, period] of periodColumns.entries()) {
@@ -256,7 +297,7 @@ function extractDashboardTables(workbook, source, sheetNames, prefix) {
             label,
             value,
             period,
-            { workbook_sheet: sheetName, dashboard_row: label },
+            { workbook_sheet: sheetName, dashboard_section: currentSection, dashboard_row: label },
           )
         }
       }
@@ -264,7 +305,14 @@ function extractDashboardTables(workbook, source, sheetNames, prefix) {
     }
     if (out.length === before) {
       const period = { label: '2026', start: '2026-01-01' }
-      for (const row of rows) {
+      let currentSection = 'Metrics'
+      for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+        const row = rows[rowIndex]
+        const section = sectionFromRow(row)
+        if (section) {
+          currentSection = section
+          continue
+        }
         const label = labelForRow(row, new Map())
         if (!label) continue
         row.forEach((cell, colIndex) => {
@@ -278,7 +326,12 @@ function extractDashboardTables(workbook, source, sheetNames, prefix) {
             label,
             value,
             period,
-            { workbook_sheet: sheetName, dashboard_row: label, cell_index: String(colIndex + 1) },
+            {
+              workbook_sheet: sheetName,
+              dashboard_section: sectionNearCell(rows, rowIndex, colIndex, currentSection),
+              dashboard_row: label,
+              cell_index: String(colIndex + 1),
+            },
           )
         })
       }
