@@ -177,6 +177,13 @@ function extractPairBlock(rows, source, prefix, sheetName, sheetRows, section, s
   }
 }
 
+function extractPairColumns(rows, source, prefix, sheetName, sheetRows, section, startRow, endRow, pairs, period, unit = 'count') {
+  for (const [labelCol, valueCol, pairSection] of pairs) {
+    const namedSection = pairSection ? `${section} - ${pairSection}` : section
+    extractPairBlock(rows, source, prefix, sheetName, sheetRows, namedSection, startRow, endRow, labelCol, valueCol, period, unit)
+  }
+}
+
 function bucket(value, fallback = 'Unspecified') {
   const s = text(value)
   return (s || fallback).slice(0, 80)
@@ -197,6 +204,7 @@ function periodFromHeader(value) {
   const label = text(value)
   if (!label) return null
   const lower = label.toLowerCase()
+  if (/^\d{4}$/.test(label)) return { label, start: `${label}-01-01` }
   if (lower.includes('year-to-date') || lower === 'ytd') return { label: '2026', start: '2026-01-01' }
   const q = lower.match(/\bq(?:tr)?\s*([1-4])\b/)
   if (q) {
@@ -204,6 +212,11 @@ function periodFromHeader(value) {
     return { label: `2026-Q${q[1]}`, start: `2026-${starts[q[1]]}-01` }
   }
   return periodFrom(label, '2026')
+}
+
+function workbookPeriod(label) {
+  if (/^\d{4}-\d{2}$/.test(label)) return { label, start: `${label}-01` }
+  return periodFromHeader(label)
 }
 
 function isPeriodHeader(value) {
@@ -377,6 +390,58 @@ function extractFinancialHealthDashboard(workbook) {
   return out
 }
 
+function extractCfacReachDashboard(workbook) {
+  const out = []
+  const sheetName = 'Reach'
+  const rows = readSheet(workbook, sheetName)
+  const columns = [
+    [1, '2026'], [2, '2026-01'], [3, '2026-02'], [4, '2026-03'], [5, '2026-Q1'],
+    [6, '2026-04'], [7, '2026-05'], [8, '2026-06'], [9, '2026-Q2'],
+    [10, '2026-07'], [11, '2026-08'], [12, '2026-09'], [13, '2026-Q3'],
+    [14, '2026-10'], [15, '2026-11'], [16, '2026-12'], [17, '2026-Q4'],
+  ]
+  for (let r = 1; r <= 31; r++) {
+    const label = rows[r]?.[0]
+    for (const [colIndex, header] of columns) {
+      addDashboardPoint(out, SOURCES.cfacDashboard, 'cfac_reach', sheetName, 'Actual Reach', label, rows[r]?.[colIndex], workbookPeriod(header), 'count', { dashboard_order: r * 100 + colIndex })
+    }
+  }
+  for (let r = 33; r <= 60; r++) {
+    const label = rows[r]?.[0]
+    for (const [colIndex, header] of columns) {
+      addDashboardPoint(out, SOURCES.cfacDashboard, 'cfac_reach', sheetName, 'Goals & Projections', label, rows[r]?.[colIndex], workbookPeriod(header), 'count', { dashboard_order: r * 100 + colIndex })
+    }
+  }
+  return out
+}
+
+function extractCfacOrganizationalImpactDashboard(workbook) {
+  const out = []
+  const sheetName = 'Organizational Impact'
+  const rows = readSheet(workbook, sheetName)
+  const columns = [
+    [1, '2026'], [2, '2026-01'], [3, '2026-02'], [4, '2026-03'], [5, '2026-Q1'],
+    [6, '2026-04'], [7, '2026-05'], [8, '2026-06'], [9, '2026-Q2'],
+    [10, '2026-07'], [11, '2026-08'], [12, '2026-09'], [13, '2026-Q3'],
+    [14, '2026-10'], [15, '2026-11'], [16, '2026-12'], [17, '2026-Q4'],
+  ]
+  const blocks = [
+    ['Clients Served', 1, 4],
+    ['Services Provided', 5, 16],
+    ['CFAC Impact', 17, 23],
+    ['Goals & Projections', 25, 40],
+  ]
+  for (const [section, startRow, endRow] of blocks) {
+    for (let r = startRow; r <= endRow; r++) {
+      const label = rows[r]?.[0]
+      for (const [colIndex, header] of columns) {
+        addDashboardPoint(out, SOURCES.cfacDashboard, 'cfac_organizational_impact', sheetName, section, label, rows[r]?.[colIndex], workbookPeriod(header), /rate|hotline reports served/i.test(text(label)) ? 'percent' : 'count', { dashboard_order: r * 100 + colIndex })
+      }
+    }
+  }
+  return out
+}
+
 function extractCarpYtdDashboard(workbook) {
   const out = []
   const sheetName = 'YTD Dashboard'
@@ -430,6 +495,110 @@ function extractResidentialDashboard(workbook) {
   extractPairBlock(out, SOURCES.residentialDashboard, 'residential_dashboard_block', sheetName, rows, 'Youth Empowerment', 2, 11, 20, 21, period)
   extractPairBlock(out, SOURCES.residentialDashboard, 'residential_dashboard_block', sheetName, rows, 'Youth Empowerment Details', 2, 11, 22, 23, period)
   extractPairBlock(out, SOURCES.residentialDashboard, 'residential_dashboard_block', sheetName, rows, 'Youth Empowerment Support', 2, 11, 24, 25, period)
+  return out
+}
+
+function extractEducationDashboardTables(workbook) {
+  const out = []
+  const sheetName = 'Dashboard'
+  const rows = readSheet(workbook, sheetName)
+  const starts = [
+    ['Year-to-Date', 2, 21, { label: '2026', start: '2026-01-01' }],
+    ['QTR 1', 24, 43, periodFromHeader('QTR 1')],
+    ['QTR 2', 46, 65, periodFromHeader('QTR 2')],
+    ['QTR 3', 68, 87, periodFromHeader('QTR 3')],
+    ['QTR 4', 90, 109, periodFromHeader('QTR 4')],
+  ]
+  const pairs = [[0, 1, 'Totals'], [2, 3, 'People'], [4, 5, 'Presenters'], [6, 7, 'Presentations'], [8, 9, 'Evaluations']]
+  for (const [section, startRow, endRow, period] of starts) {
+    extractPairColumns(out, SOURCES.education, 'education_dashboard_table', sheetName, rows, section, startRow, endRow, pairs, period)
+  }
+  return out
+}
+
+function extractVolunteerDashboard(workbook) {
+  const out = []
+  const sheetName = 'Dashboard'
+  const rows = readSheet(workbook, sheetName)
+  const period = { label: '2026', start: '2026-01-01' }
+  extractPairColumns(out, SOURCES.volunteers, 'volunteer_dashboard_table', sheetName, rows, 'Year-to-Date Volunteer Program', 2, 7, [[0, 1], [2, 3, 'Pulse Check'], [4, 5, 'Open Items']], period)
+  extractPairColumns(out, SOURCES.volunteers, 'volunteer_dashboard_table', sheetName, rows, 'Year-to-Date Volunteer Stats', 9, 35, [[0, 1, 'Stats'], [2, 3, 'Breakdowns']], period)
+  const monthPairs = [
+    [6, 7, 'January'], [8, 9, 'February'], [10, 11, 'March'],
+    [6, 7, 'April'], [8, 9, 'May'], [10, 11, 'June'],
+    [6, 7, 'July'], [8, 9, 'August'], [10, 11, 'September'],
+    [6, 7, 'October'], [8, 9, 'November'], [10, 11, 'December'],
+  ]
+  const rowBlocks = [[2, 10, 0], [13, 20, 3], [23, 30, 6], [33, 40, 9]]
+  for (const [startRow, endRow, offset] of rowBlocks) {
+    for (const [labelCol, valueCol, month] of monthPairs.slice(offset, offset + 3)) {
+      extractPairBlock(out, SOURCES.volunteers, 'volunteer_dashboard_table', sheetName, rows, `Monthly - ${month}`, startRow, endRow, labelCol, valueCol, periodFrom(month, '2026'))
+    }
+  }
+  return out
+}
+
+function extractXayaDashboard(workbook) {
+  const out = []
+  const sheetName = 'Dashboard'
+  const rows = readSheet(workbook, sheetName)
+  extractPairColumns(out, SOURCES.xaya, 'xaya_dashboard_table', sheetName, rows, 'Year-to-Date', 2, 10, [[0, 1, 'Interactions'], [2, 3, 'People & Time']], { label: '2026', start: '2026-01-01' })
+  extractPairColumns(out, SOURCES.xaya, 'xaya_dashboard_table', sheetName, rows, 'Quarter 1', 12, 20, [[0, 1, 'Interactions'], [2, 3, 'People & Time']], periodFromHeader('QTR 1'))
+  extractPairColumns(out, SOURCES.xaya, 'xaya_dashboard_table', sheetName, rows, 'Quarter 2', 12, 20, [[4, 5, 'Interactions'], [6, 7, 'People & Time']], periodFromHeader('QTR 2'))
+  extractPairColumns(out, SOURCES.xaya, 'xaya_dashboard_table', sheetName, rows, 'Quarter 3', 22, 30, [[0, 1, 'Interactions'], [2, 3, 'People & Time']], periodFromHeader('QTR 3'))
+  extractPairColumns(out, SOURCES.xaya, 'xaya_dashboard_table', sheetName, rows, 'Quarter 4', 22, 30, [[4, 5, 'Interactions'], [6, 7, 'People & Time']], periodFromHeader('QTR 4'))
+  return out
+}
+
+function extractHrDashboard(workbook) {
+  const out = []
+  const sheetName = 'Dashboard'
+  const rows = readSheet(workbook, sheetName)
+  const period = { label: '2026', start: '2026-01-01' }
+  for (let r = 3; r <= 14; r++) {
+    const month = text(rows[r]?.[0])
+    if (!month) continue
+    addDashboardPoint(out, SOURCES.hr, 'hr_dashboard_table', sheetName, 'Hiring - Openings', `${month} openings`, rows[r]?.[1], period, 'count', { dashboard_order: r * 100 + 1 })
+    addDashboardPoint(out, SOURCES.hr, 'hr_dashboard_table', sheetName, 'Hiring - Filled', `${month} filled`, rows[r]?.[2], period, 'count', { dashboard_order: r * 100 + 2 })
+  }
+  extractPairBlock(out, SOURCES.hr, 'hr_dashboard_table', sheetName, rows, 'Hiring - Year-to-Date', 17, 18, 0, 1, period)
+  extractPairBlock(out, SOURCES.hr, 'hr_dashboard_table', sheetName, rows, 'Interns', 2, 3, 3, 4, period)
+  for (let r = 5; r <= 16; r++) {
+    const month = text(rows[r]?.[3])
+    if (!month) continue
+    addDashboardPoint(out, SOURCES.hr, 'hr_dashboard_table', sheetName, 'Interns - Start Dates', `${month} start dates`, rows[r]?.[4], period, 'count', { dashboard_order: r * 100 + 4 })
+    addDashboardPoint(out, SOURCES.hr, 'hr_dashboard_table', sheetName, 'Interns - End Dates', `${month} end dates`, rows[r]?.[5], period, 'count', { dashboard_order: r * 100 + 5 })
+  }
+  extractPairBlock(out, SOURCES.hr, 'hr_dashboard_table', sheetName, rows, 'Staff', 2, 4, 5, 6, period)
+  extractPairBlock(out, SOURCES.hr, 'hr_dashboard_table', sheetName, rows, 'Interns - Year-to-Date', 19, 21, 0, 1, period)
+  return out
+}
+
+function extractMarketingDashboard(workbook) {
+  const out = []
+  const sheetName = 'Dashboard'
+  const rows = readSheet(workbook, sheetName)
+  const period = { label: '2026', start: '2026-01-01' }
+  extractPairBlock(out, SOURCES.marketing, 'marketing_dashboard_table', sheetName, rows, 'Projects', 17, 33, 0, 1, period)
+  extractPairBlock(out, SOURCES.marketing, 'marketing_dashboard_table', sheetName, rows, 'Communications', 17, 33, 2, 3, period)
+  return out
+}
+
+function extractOperationsPulseDashboard(workbook) {
+  const out = []
+  const sheetName = 'PULSE CHECK'
+  const rows = readSheet(workbook, sheetName)
+  const period = { label: '2026', start: '2026-01-01' }
+  extractPairColumns(out, SOURCES.operations, 'operations_pulse_table', sheetName, rows, 'Last 30 Days', 2, 23, [[0, 1, 'Maintenance'], [2, 3, 'Security'], [4, 5, 'Supply Management'], [6, 7, 'Fleet Management'], [8, 9, 'Technology']], period)
+  return out
+}
+
+function extractMentalHealthDashboardTables(workbook) {
+  const out = []
+  const sheetName = 'Dashboard'
+  const rows = readSheet(workbook, sheetName)
+  const period = { label: '2026', start: '2026-01-01' }
+  extractPairColumns(out, SOURCES.mentalHealthDashboard, 'mental_health_dashboard_table', sheetName, rows, 'Year-to-Date', 2, 12, [[0, 1, 'Inquiries'], [2, 3, 'Inquiry Reason & Outcome'], [4, 5, 'Youth Clients'], [6, 7, 'Youth Scores'], [8, 9, 'Adult Clients'], [10, 11, 'Adult Scores'], [12, 13, 'Community']], period)
   return out
 }
 
@@ -682,41 +851,50 @@ skipped.push(...skippedRawTabs)
 
 const extractors = [
   ['CFAC Dashboard_2026.xlsx', (wb) => [
+    ...extractCfacReachDashboard(wb),
+    ...extractCfacOrganizationalImpactDashboard(wb),
     ...extractFinancialHealthDashboard(wb),
-    ...extractDashboardTables(wb, SOURCES.cfacDashboard, ['Reach', 'Organizational Impact', 'Financial Health', 'Exception Report'], 'cfac_dashboard'),
+    ...extractDashboardTables(wb, SOURCES.cfacDashboard, ['Exception Report'], 'cfac_dashboard'),
   ]],
   ['CARP_2026.xlsx', (wb) => [
     ...extractCarpYtdDashboard(wb),
     ...extractDashboardTables(wb, SOURCES.carpDashboard, ['PULSE CHECK', 'YTD Dashboard'], 'carp_dashboard'),
   ]],
-  ['Mental Health_2026.xlsx', (wb) => extractDashboardTables(wb, SOURCES.mentalHealthDashboard, ['PULSE CHECK', 'Dashboard'], 'mental_health_dashboard')],
+  ['Mental Health_2026.xlsx', (wb) => [
+    ...extractMentalHealthDashboardTables(wb),
+    ...extractDashboardTables(wb, SOURCES.mentalHealthDashboard, ['PULSE CHECK', 'Dashboard'], 'mental_health_dashboard'),
+  ]],
   ['Residential_2026.xlsx', (wb) => [
     ...extractResidentialDashboard(wb),
     ...extractDashboardTables(wb, SOURCES.residentialDashboard, ['Dashboard', 'PULSE CHECK'], 'residential_dashboard'),
   ]],
   ['Education_2026.xlsx', (wb) => [
-    ...extractEducationDashboard(wb),
+    ...extractEducationDashboardTables(wb),
+    ...extractEducationDashboard(wb).filter((row) => ['education_trainings_ytd', 'education_people_trained'].includes(row.metric_key)),
     ...extractEducation(wb),
   ]],
   ['Community Engagement_2026.xlsm', extractCommunity],
   ['Volunteer_2026.xlsx', (wb) => [
-    ...extractDashboardTables(wb, SOURCES.volunteers, ['Dashboard'], 'volunteer_dashboard'),
+    ...extractVolunteerDashboard(wb),
     ...extractVolunteers(wb),
   ]],
   ['Xaya_2026.xlsx', (wb) => [
-    ...extractDashboardTables(wb, SOURCES.xaya, ['Dashboard'], 'xaya_dashboard'),
+    ...extractXayaDashboard(wb),
     ...extractXaya(wb),
   ]],
   ['Operations_2026.xlsx', (wb) => [
-    ...extractDashboardTables(wb, SOURCES.operations, ['PULSE CHECK', 'Maintenance Requests'], 'operations_dashboard'),
+    ...extractOperationsPulseDashboard(wb),
+    ...extractDashboardTables(wb, SOURCES.operations, ['Maintenance Requests'], 'operations_dashboard'),
     ...extractOperations(wb),
   ]],
   ['Marketing_2026.xlsx', (wb) => [
-    ...extractDashboardTables(wb, SOURCES.marketing, ['Dashboard', 'Summary'], 'marketing_dashboard'),
+    ...extractMarketingDashboard(wb),
+    ...extractDashboardTables(wb, SOURCES.marketing, ['Summary'], 'marketing_dashboard'),
     ...extractMarketing(wb),
   ]],
   ['Human Resources_2026.xlsx', (wb) => [
-    ...extractDashboardTables(wb, SOURCES.hr, ['Dashboard', 'Hiring', 'Staff'], 'hr_dashboard'),
+    ...extractHrDashboard(wb),
+    ...extractDashboardTables(wb, SOURCES.hr, ['Hiring', 'Staff'], 'hr_dashboard'),
     ...extractHr(wb),
   ]],
   ['Enrichment_2026.xlsx', extractEnrichment],
