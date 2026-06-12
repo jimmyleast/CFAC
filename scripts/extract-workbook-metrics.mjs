@@ -157,10 +157,11 @@ function addPoint(rows, source, metricKey, label, value, period, dimension = {},
 function addDashboardPoint(rows, source, prefix, sheetName, section, label, value, period = { label: '2026', start: '2026-01-01' }, unit = 'count', extra = {}) {
   const cleanLabel = text(label)
   if (!cleanLabel || isUnsafeLabel(cleanLabel)) return
+  const orderSuffix = typeof extra.dashboard_order === 'number' ? `_r${extra.dashboard_order}` : ''
   addPoint(
     rows,
     source,
-    `${prefix}_${slugify(sheetName)}_${slugify(section)}_${slugify(cleanLabel)}`,
+    `${prefix}_${slugify(sheetName)}_${slugify(section)}_${slugify(cleanLabel)}${orderSuffix}`,
     cleanLabel.slice(0, 120),
     value,
     period,
@@ -172,7 +173,7 @@ function addDashboardPoint(rows, source, prefix, sheetName, section, label, valu
 function extractPairBlock(rows, source, prefix, sheetName, sheetRows, section, startRow, endRow, labelCol, valueCol, period, unit = 'count') {
   for (let r = startRow; r <= endRow; r++) {
     const row = sheetRows[r] || []
-    addDashboardPoint(rows, source, prefix, sheetName, section, row[labelCol], row[valueCol], period, unit)
+    addDashboardPoint(rows, source, prefix, sheetName, section, row[labelCol], row[valueCol], period, unit, { dashboard_order: r * 100 + valueCol })
   }
 }
 
@@ -297,7 +298,7 @@ function extractDashboardTables(workbook, source, sheetNames, prefix) {
             label,
             value,
             period,
-            { workbook_sheet: sheetName, dashboard_section: currentSection, dashboard_row: label },
+            { workbook_sheet: sheetName, dashboard_section: currentSection, dashboard_row: label, dashboard_order: r * 100 + colIndex },
           )
         }
       }
@@ -330,6 +331,7 @@ function extractDashboardTables(workbook, source, sheetNames, prefix) {
               workbook_sheet: sheetName,
               dashboard_section: sectionNearCell(rows, rowIndex, colIndex, currentSection),
               dashboard_row: label,
+              dashboard_order: rowIndex * 100 + colIndex,
               cell_index: String(colIndex + 1),
             },
           )
@@ -353,14 +355,14 @@ function extractFinancialHealthDashboard(workbook) {
 
   for (const r of [2, 3, 4]) {
     for (const [colIndex, header] of monthColumns) {
-      addDashboardPoint(out, SOURCES.cfacDashboard, 'cfac_financial_health', sheetName, 'Finance', rows[r]?.[1], rows[r]?.[colIndex], periodFromHeader(header), rows[r]?.[1] === 'Months of Reserves' ? 'months' : 'usd')
+      addDashboardPoint(out, SOURCES.cfacDashboard, 'cfac_financial_health', sheetName, 'Finance', rows[r]?.[1], rows[r]?.[colIndex], periodFromHeader(header), rows[r]?.[1] === 'Months of Reserves' ? 'months' : 'usd', { dashboard_order: r * 100 + colIndex })
     }
   }
   for (const r of [6, 7, 8, 9, 10, 11, 12, 13]) {
     for (const [colIndex, header] of monthColumns) {
       const label = rows[r]?.[1]
       const unit = /rate/i.test(text(label)) ? 'percent' : (/donors/i.test(text(label)) ? 'count' : 'usd')
-      addDashboardPoint(out, SOURCES.cfacDashboard, 'cfac_financial_health', sheetName, 'Fund Development', label, rows[r]?.[colIndex], periodFromHeader(header), unit)
+      addDashboardPoint(out, SOURCES.cfacDashboard, 'cfac_financial_health', sheetName, 'Fund Development', label, rows[r]?.[colIndex], periodFromHeader(header), unit, { dashboard_order: r * 100 + colIndex })
     }
   }
   for (const r of [15, 16, 17, 18, 19, 20, 21, 22, 23]) {
@@ -369,7 +371,7 @@ function extractFinancialHealthDashboard(workbook) {
       if (!text(header)) continue
       const label = rows[r]?.[1]
       const unit = /rate/i.test(text(label)) ? 'percent' : (/donors/i.test(text(label)) ? 'count' : 'usd')
-      addDashboardPoint(out, SOURCES.cfacDashboard, 'cfac_financial_health', sheetName, 'Quarter Summary', label, rows[r]?.[colIndex], periodFromHeader(header), unit)
+      addDashboardPoint(out, SOURCES.cfacDashboard, 'cfac_financial_health', sheetName, 'Quarter Summary', label, rows[r]?.[colIndex], periodFromHeader(header), unit, { dashboard_order: r * 100 + colIndex })
     }
   }
   return out
@@ -400,13 +402,13 @@ function extractCarpYtdDashboard(workbook) {
     const advocate = text(rows[r]?.[1])
     if (!advocate) continue
     for (const [metric, colIndex] of staffingColumns) {
-      addDashboardPoint(out, SOURCES.carpDashboard, 'carp_ytd', sheetName, 'Staffing', `${advocate} - ${metric}`, rows[r]?.[colIndex], period)
+      addDashboardPoint(out, SOURCES.carpDashboard, 'carp_ytd', sheetName, 'Staffing', `${advocate} - ${metric}`, rows[r]?.[colIndex], period, 'count', { dashboard_order: r * 100 + colIndex })
     }
   }
   for (let r = 32; r <= 36; r++) {
     const interviewer = text(rows[r]?.[1])
     if (!interviewer) continue
-    addDashboardPoint(out, SOURCES.carpDashboard, 'carp_ytd', sheetName, 'Forensic Interviewers', `${interviewer} - Case Count`, rows[r]?.[2], period)
+    addDashboardPoint(out, SOURCES.carpDashboard, 'carp_ytd', sheetName, 'Forensic Interviewers', `${interviewer} - Case Count`, rows[r]?.[2], period, 'count', { dashboard_order: r * 100 + 2 })
   }
   return out
 }

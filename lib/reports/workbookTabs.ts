@@ -16,6 +16,7 @@ export type WorkbookTabMetric = {
   value: number
   unit: string | null
   section: string | null
+  order: number
 }
 
 export type WorkbookTabSection = {
@@ -49,6 +50,11 @@ function tabName(row: WorkbookMetricRow): string {
   return typeof sheet === 'string' && sheet.trim() ? sheet.trim() : 'Metrics'
 }
 
+function rowOrder(row: WorkbookMetricRow): number {
+  const value = row.dimension?.dashboard_order
+  return typeof value === 'number' && Number.isFinite(value) ? value : 999_999
+}
+
 export function groupWorkbookReports(rows: WorkbookMetricRow[]): WorkbookReport[] {
   const reports = new Map<string, WorkbookReport>()
   for (const row of rows) {
@@ -75,6 +81,7 @@ export function groupWorkbookReports(rows: WorkbookMetricRow[]): WorkbookReport[
       value,
       unit: row.unit,
       section: typeof row.dimension?.dashboard_section === 'string' ? row.dimension.dashboard_section : null,
+      order: rowOrder(row),
     })
   }
 
@@ -84,7 +91,7 @@ export function groupWorkbookReports(rows: WorkbookMetricRow[]): WorkbookReport[
       tabs: report.tabs
         .map((tab) => ({
           ...tab,
-          metrics: tab.metrics.sort((a, b) => (a.period || '').localeCompare(b.period || '') || a.label.localeCompare(b.label)),
+          metrics: tab.metrics.sort((a, b) => a.order - b.order || (a.period || '').localeCompare(b.period || '') || a.label.localeCompare(b.label)),
           sections: Array.from(
             tab.metrics.reduce((acc, metric) => {
               const section = metric.section || 'Metrics'
@@ -93,7 +100,11 @@ export function groupWorkbookReports(rows: WorkbookMetricRow[]): WorkbookReport[
               acc.set(section, group)
               return acc
             }, new Map<string, WorkbookTabMetric[]>()).entries(),
-          ).map(([name, metrics]) => ({ name, metrics })).sort((a, b) => a.name.localeCompare(b.name)),
+          ).map(([name, metrics]) => ({ name, metrics })).sort((a, b) => {
+            const aOrder = Math.min(...a.metrics.map((metric) => metric.order))
+            const bOrder = Math.min(...b.metrics.map((metric) => metric.order))
+            return aOrder - bOrder || a.name.localeCompare(b.name)
+          }),
         }))
         .sort((a, b) => a.name.localeCompare(b.name)),
     }))

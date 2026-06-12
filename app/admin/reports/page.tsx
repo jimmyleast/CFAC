@@ -12,7 +12,7 @@ const BG2 = 'rgba(255,255,255,0.025)'
 const OK = '#7DD3C7'
 const WARN = '#E0846B'
 
-type TabMetric = { metricKey: string; label: string; period: string | null; value: number; unit: string | null }
+type TabMetric = { metricKey: string; label: string; period: string | null; value: number; unit: string | null; section?: string | null }
 type WorkbookTabSection = { name: string; metrics: TabMetric[] }
 type WorkbookTab = { name: string; metrics: TabMetric[]; sections: WorkbookTabSection[] }
 type WorkbookReport = { sourceName: string; sourceSlug: string; tabs: WorkbookTab[] }
@@ -25,8 +25,38 @@ async function token() {
 
 function fmt(value: number, unit: string | null) {
   if (unit === 'usd') return value.toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
-  if (unit === 'percent') return `${value.toLocaleString(undefined, { maximumFractionDigits: 1 })}%`
+  if (unit === 'percent') {
+    const normalized = Math.abs(value) <= 1 ? value * 100 : value
+    return `${normalized.toLocaleString(undefined, { maximumFractionDigits: 1 })}%`
+  }
   return value.toLocaleString(undefined, { maximumFractionDigits: 1 })
+}
+
+function periodRank(period: string | null) {
+  if (!period) return 999
+  if (/^\d{4}$/.test(period)) return 0
+  const q = period.match(/Q([1-4])$/)
+  if (q) return 10 + Number(q[1])
+  const month = period.match(/-(\d{2})$/)
+  if (month) return 20 + Number(month[1])
+  return 500
+}
+
+function sectionTable(metrics: TabMetric[]) {
+  const periods = Array.from(new Set(metrics.map((m) => m.period || 'Value')))
+    .sort((a, b) => periodRank(a === 'Value' ? null : a) - periodRank(b === 'Value' ? null : b) || a.localeCompare(b))
+  const rowKeys = Array.from(new Set(metrics.map((m) => `${m.metricKey}|${m.label}`)))
+  return rowKeys.map((key) => {
+    const [metricKey, label] = key.split('|')
+    const rowMetrics = metrics.filter((m) => m.metricKey === metricKey && m.label === label)
+    return {
+      key: metricKey,
+      label,
+      unit: rowMetrics[0]?.unit || null,
+      periods,
+      values: periods.map((period) => rowMetrics.find((m) => (m.period || 'Value') === period)?.value ?? null),
+    }
+  })
 }
 
 export default function ReportsPage() {
@@ -101,46 +131,68 @@ export default function ReportsPage() {
             </div>
 
             {activeTab.sections?.length > 0 && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10, marginBottom: 12 }}>
-                {activeTab.sections.map((section) => (
-                  <section key={section.name} style={{ border: `1px solid ${LINE}`, borderRadius: 8, background: BG2, overflow: 'hidden' }}>
-                    <div style={{ padding: '8px 10px', borderBottom: `1px solid ${LINE}`, color: GOLD, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{section.name}</div>
-                    <div style={{ padding: '6px 10px' }}>
-                      {section.metrics.slice(0, 10).map((m, i) => (
-                        <div key={`${section.name}-${m.metricKey}-${m.period}-${i}`} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, padding: '5px 0', borderBottom: i === Math.min(section.metrics.length, 10) - 1 ? 'none' : `1px solid ${LINE}` }}>
-                          <div style={{ color: TEXT2, fontSize: 12, overflowWrap: 'anywhere' }}>{m.label}<span style={{ color: TEXT4 }}>{m.period ? ` · ${m.period}` : ''}</span></div>
-                          <div style={{ color: TEXT, fontSize: 12, fontFamily: 'var(--font-heading)' }}>{fmt(m.value, m.unit)}</div>
-                        </div>
-                      ))}
-                      {section.metrics.length > 10 && <div style={{ color: TEXT4, fontSize: 11, paddingTop: 6 }}>+ {section.metrics.length - 10} more rows below</div>}
-                    </div>
-                  </section>
-                ))}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12, marginBottom: 12 }}>
+                {activeTab.sections.map((section) => {
+                  const rows = sectionTable(section.metrics)
+                  const periods = rows[0]?.periods || ['Value']
+                  return (
+                    <section key={section.name} style={{ border: `1px solid ${LINE}`, borderRadius: 8, background: BG2, overflow: 'hidden' }}>
+                      <div style={{ padding: '9px 12px', borderBottom: `1px solid ${LINE}`, color: GOLD, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{section.name}</div>
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', minWidth: 520, borderCollapse: 'collapse' }}>
+                          <thead>
+                            <tr style={{ color: TEXT4, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                              <th style={{ textAlign: 'left', padding: '8px 12px', borderBottom: `1px solid ${LINE}`, width: '42%' }}>KPI / row</th>
+                              {periods.map((period) => (
+                                <th key={period} style={{ textAlign: 'right', padding: '8px 12px', borderBottom: `1px solid ${LINE}` }}>{period}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {rows.map((row) => (
+                              <tr key={`${section.name}-${row.key}`} style={{ color: TEXT2, fontSize: 12 }}>
+                                <td style={{ padding: '8px 12px', borderBottom: `1px solid ${LINE}`, overflowWrap: 'anywhere' }}>{row.label}</td>
+                                {row.values.map((value, i) => (
+                                  <td key={`${row.label}-${row.periods[i]}`} style={{ padding: '8px 12px', borderBottom: `1px solid ${LINE}`, textAlign: 'right', color: value === null ? TEXT4 : TEXT, fontFamily: value === null ? undefined : 'var(--font-heading)' }}>
+                                    {value === null ? '-' : fmt(value, row.unit)}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  )
+                })}
               </div>
             )}
 
-            <div style={{ overflowX: 'auto', border: `1px solid ${LINE}`, borderRadius: 8, background: BG2 }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 680 }}>
-                <thead>
-                  <tr style={{ color: TEXT4, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                    <th style={{ textAlign: 'left', padding: '10px 12px', borderBottom: `1px solid ${LINE}` }}>Metric / row</th>
-                    <th style={{ textAlign: 'left', padding: '10px 12px', borderBottom: `1px solid ${LINE}` }}>Period</th>
-                    <th style={{ textAlign: 'right', padding: '10px 12px', borderBottom: `1px solid ${LINE}` }}>Value</th>
-                    <th style={{ textAlign: 'left', padding: '10px 12px', borderBottom: `1px solid ${LINE}` }}>Key</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {activeTab.metrics.map((m, i) => (
-                    <tr key={`${m.metricKey}-${m.period}-${i}`} style={{ color: TEXT2, fontSize: 13 }}>
-                      <td style={{ padding: '9px 12px', borderBottom: `1px solid ${LINE}` }}>{m.label}</td>
-                      <td style={{ padding: '9px 12px', borderBottom: `1px solid ${LINE}`, color: TEXT4 }}>{m.period || 'none'}</td>
-                      <td style={{ padding: '9px 12px', borderBottom: `1px solid ${LINE}`, textAlign: 'right', color: TEXT }}>{fmt(m.value, m.unit)}</td>
-                      <td style={{ padding: '9px 12px', borderBottom: `1px solid ${LINE}`, color: TEXT4, fontFamily: 'var(--font-mono)', fontSize: 11 }}>{m.metricKey}</td>
+            <details>
+              <summary style={{ color: TEXT4, cursor: 'pointer', fontSize: 12 }}>Raw aggregate rows</summary>
+              <div style={{ overflowX: 'auto', border: `1px solid ${LINE}`, borderRadius: 8, background: BG2, marginTop: 8 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 680 }}>
+                  <thead>
+                    <tr style={{ color: TEXT4, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                      <th style={{ textAlign: 'left', padding: '10px 12px', borderBottom: `1px solid ${LINE}` }}>Metric / row</th>
+                      <th style={{ textAlign: 'left', padding: '10px 12px', borderBottom: `1px solid ${LINE}` }}>Period</th>
+                      <th style={{ textAlign: 'right', padding: '10px 12px', borderBottom: `1px solid ${LINE}` }}>Value</th>
+                      <th style={{ textAlign: 'left', padding: '10px 12px', borderBottom: `1px solid ${LINE}` }}>Key</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {activeTab.metrics.map((m, i) => (
+                      <tr key={`${m.metricKey}-${m.period}-${i}`} style={{ color: TEXT2, fontSize: 13 }}>
+                        <td style={{ padding: '9px 12px', borderBottom: `1px solid ${LINE}` }}>{m.label}</td>
+                        <td style={{ padding: '9px 12px', borderBottom: `1px solid ${LINE}`, color: TEXT4 }}>{m.period || 'none'}</td>
+                        <td style={{ padding: '9px 12px', borderBottom: `1px solid ${LINE}`, textAlign: 'right', color: TEXT }}>{fmt(m.value, m.unit)}</td>
+                        <td style={{ padding: '9px 12px', borderBottom: `1px solid ${LINE}`, color: TEXT4, fontFamily: 'var(--font-mono)', fontSize: 11 }}>{m.metricKey}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </details>
           </main>
         </div>
       )}
