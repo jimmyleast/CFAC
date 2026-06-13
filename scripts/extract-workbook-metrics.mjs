@@ -524,10 +524,10 @@ function extractVolunteerDashboard(workbook) {
   extractPairColumns(out, SOURCES.volunteers, 'volunteer_dashboard_table', sheetName, rows, 'Year-to-Date Volunteer Program', 2, 7, [[0, 1], [2, 3, 'Pulse Check'], [4, 5, 'Open Items']], period)
   extractPairColumns(out, SOURCES.volunteers, 'volunteer_dashboard_table', sheetName, rows, 'Year-to-Date Volunteer Stats', 9, 35, [[0, 1, 'Stats'], [2, 3, 'Breakdowns']], period)
   const monthPairs = [
-    [6, 7, 'January'], [8, 9, 'February'], [10, 11, 'March'],
-    [6, 7, 'April'], [8, 9, 'May'], [10, 11, 'June'],
-    [6, 7, 'July'], [8, 9, 'August'], [10, 11, 'September'],
-    [6, 7, 'October'], [8, 9, 'November'], [10, 11, 'December'],
+    [8, 9, 'January'], [11, 12, 'February'], [14, 15, 'March'],
+    [8, 9, 'April'], [11, 12, 'May'], [14, 15, 'June'],
+    [8, 9, 'July'], [11, 12, 'August'], [14, 15, 'September'],
+    [8, 9, 'October'], [11, 12, 'November'], [14, 15, 'December'],
   ]
   const rowBlocks = [[2, 10, 0], [13, 20, 3], [23, 30, 6], [33, 40, 9]]
   for (const [startRow, endRow, offset] of rowBlocks) {
@@ -544,9 +544,9 @@ function extractXayaDashboard(workbook) {
   const rows = readSheet(workbook, sheetName)
   extractPairColumns(out, SOURCES.xaya, 'xaya_dashboard_table', sheetName, rows, 'Year-to-Date', 2, 10, [[0, 1, 'Interactions'], [2, 3, 'People & Time']], { label: '2026', start: '2026-01-01' })
   extractPairColumns(out, SOURCES.xaya, 'xaya_dashboard_table', sheetName, rows, 'Quarter 1', 12, 20, [[0, 1, 'Interactions'], [2, 3, 'People & Time']], periodFromHeader('QTR 1'))
-  extractPairColumns(out, SOURCES.xaya, 'xaya_dashboard_table', sheetName, rows, 'Quarter 2', 12, 20, [[4, 5, 'Interactions'], [6, 7, 'People & Time']], periodFromHeader('QTR 2'))
+  extractPairColumns(out, SOURCES.xaya, 'xaya_dashboard_table', sheetName, rows, 'Quarter 2', 12, 20, [[5, 6, 'Interactions'], [7, 8, 'People & Time']], periodFromHeader('QTR 2'))
   extractPairColumns(out, SOURCES.xaya, 'xaya_dashboard_table', sheetName, rows, 'Quarter 3', 22, 30, [[0, 1, 'Interactions'], [2, 3, 'People & Time']], periodFromHeader('QTR 3'))
-  extractPairColumns(out, SOURCES.xaya, 'xaya_dashboard_table', sheetName, rows, 'Quarter 4', 22, 30, [[4, 5, 'Interactions'], [6, 7, 'People & Time']], periodFromHeader('QTR 4'))
+  extractPairColumns(out, SOURCES.xaya, 'xaya_dashboard_table', sheetName, rows, 'Quarter 4', 22, 30, [[5, 6, 'Interactions'], [7, 8, 'People & Time']], periodFromHeader('QTR 4'))
   return out
 }
 
@@ -589,7 +589,7 @@ function extractOperationsPulseDashboard(workbook) {
   const sheetName = 'PULSE CHECK'
   const rows = readSheet(workbook, sheetName)
   const period = { label: '2026', start: '2026-01-01' }
-  extractPairColumns(out, SOURCES.operations, 'operations_pulse_table', sheetName, rows, 'Last 30 Days', 2, 23, [[0, 1, 'Maintenance'], [2, 3, 'Security'], [4, 5, 'Supply Management'], [6, 7, 'Fleet Management'], [8, 9, 'Technology']], period)
+  extractPairColumns(out, SOURCES.operations, 'operations_pulse_table', sheetName, rows, 'Last 30 Days', 2, 23, [[0, 1, 'Maintenance'], [3, 4, 'Security'], [6, 7, 'Supply Management'], [9, 10, 'Fleet Management'], [12, 13, 'Technology']], period)
   return out
 }
 
