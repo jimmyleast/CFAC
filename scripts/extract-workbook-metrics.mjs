@@ -170,6 +170,18 @@ function addDashboardPoint(rows, source, prefix, sheetName, section, label, valu
   )
 }
 
+function addCanonicalDashboardPoint(rows, source, metricKey, label, value, period, sheetName, unit = 'count') {
+  const cleanLabel = text(label)
+  if (!cleanLabel) return
+  addPoint(rows, source, metricKey, cleanLabel.slice(0, 120), value, period, { workbook_sheet: sheetName }, unit)
+}
+
+function valueForLabel(sheetRows, wantedLabel, labelCol, valueCol) {
+  const wanted = norm(wantedLabel)
+  const row = sheetRows.find((candidate) => norm(candidate?.[labelCol]) === wanted)
+  return row?.[valueCol]
+}
+
 function extractPairBlock(rows, source, prefix, sheetName, sheetRows, section, startRow, endRow, labelCol, valueCol, period, unit = 'count') {
   for (let r = startRow; r <= endRow; r++) {
     const row = sheetRows[r] || []
@@ -368,7 +380,13 @@ function extractFinancialHealthDashboard(workbook) {
 
   for (const r of [2, 3, 4]) {
     for (const [colIndex, header] of monthColumns) {
-      addDashboardPoint(out, SOURCES.cfacDashboard, 'cfac_financial_health', sheetName, 'Finance', rows[r]?.[1], rows[r]?.[colIndex], periodFromHeader(header), rows[r]?.[1] === 'Months of Reserves' ? 'months' : 'usd', { dashboard_order: r * 100 + colIndex })
+      const label = rows[r]?.[1]
+      const value = rows[r]?.[colIndex]
+      const period = periodFromHeader(header)
+      addDashboardPoint(out, SOURCES.cfacDashboard, 'cfac_financial_health', sheetName, 'Finance', label, value, period, label === 'Months of Reserves' ? 'months' : 'usd', { dashboard_order: r * 100 + colIndex })
+      if (label === 'Monthly Income' && !/^QTR/i.test(header) && toNum(value) !== 0) {
+        addCanonicalDashboardPoint(out, SOURCES.cfacDashboard, 'finance_income', 'Finance income', value, period, sheetName, 'usd')
+      }
     }
   }
   for (const r of [6, 7, 8, 9, 10, 11, 12, 13]) {
@@ -405,6 +423,10 @@ function extractCfacReachDashboard(workbook) {
     for (const [colIndex, header] of columns) {
       addDashboardPoint(out, SOURCES.cfacDashboard, 'cfac_reach', sheetName, 'Actual Reach', label, rows[r]?.[colIndex], workbookPeriod(header), 'count', { dashboard_order: r * 100 + colIndex })
     }
+    const annualPeriod = workbookPeriod('2026')
+    if (slugify(label) === 'year_to_date_actual') addCanonicalDashboardPoint(out, SOURCES.cfacDashboard, 'reach', 'Reach', rows[r]?.[1], annualPeriod, sheetName)
+    if (norm(label) === 'volunteers') addCanonicalDashboardPoint(out, SOURCES.cfacDashboard, 'volunteers', 'Volunteers', rows[r]?.[1], annualPeriod, sheetName)
+    if (norm(label) === 'tour attendees') addCanonicalDashboardPoint(out, SOURCES.cfacDashboard, 'tours', 'Tours', rows[r]?.[1], annualPeriod, sheetName)
   }
   for (let r = 33; r <= 60; r++) {
     const label = rows[r]?.[0]
@@ -420,23 +442,26 @@ function extractCfacOrganizationalImpactDashboard(workbook) {
   const sheetName = 'Organizational Impact'
   const rows = readSheet(workbook, sheetName)
   const columns = [
-    [1, '2026'], [2, '2026-01'], [3, '2026-02'], [4, '2026-03'], [5, '2026-Q1'],
-    [6, '2026-04'], [7, '2026-05'], [8, '2026-06'], [9, '2026-Q2'],
-    [10, '2026-07'], [11, '2026-08'], [12, '2026-09'], [13, '2026-Q3'],
-    [14, '2026-10'], [15, '2026-11'], [16, '2026-12'], [17, '2026-Q4'],
+    [2, '2026'], [3, '2026-01'], [4, '2026-02'], [5, '2026-03'], [6, '2026-Q1'],
+    [7, '2026-04'], [8, '2026-05'], [9, '2026-06'], [10, '2026-Q2'],
+    [11, '2026-07'], [12, '2026-08'], [13, '2026-09'], [14, '2026-Q3'],
+    [15, '2026-10'], [16, '2026-11'], [17, '2026-12'], [18, '2026-Q4'],
   ]
   const blocks = [
-    ['Clients Served', 1, 4],
-    ['Services Provided', 5, 16],
-    ['CFAC Impact', 17, 23],
-    ['Goals & Projections', 25, 40],
+    ['Clients Served', 2, 5],
+    ['Services Provided', 6, 17],
+    ['CFAC Impact', 18, 24],
+    ['Goals & Projections', 27, 39],
   ]
   for (const [section, startRow, endRow] of blocks) {
     for (let r = startRow; r <= endRow; r++) {
-      const label = rows[r]?.[0]
+      const label = rows[r]?.[1]
       for (const [colIndex, header] of columns) {
         addDashboardPoint(out, SOURCES.cfacDashboard, 'cfac_organizational_impact', sheetName, section, label, rows[r]?.[colIndex], workbookPeriod(header), /rate|hotline reports served/i.test(text(label)) ? 'percent' : 'count', { dashboard_order: r * 100 + colIndex })
       }
+      const annualPeriod = workbookPeriod('2026')
+      if (section === 'Services Provided' && label === 'Forensic Interviews') addCanonicalDashboardPoint(out, SOURCES.cfacDashboard, 'forensic_interviews', 'Forensic interviews', rows[r]?.[2], annualPeriod, sheetName)
+      if (section === 'Services Provided' && label === 'Medical') addCanonicalDashboardPoint(out, SOURCES.cfacDashboard, 'medical_exams', 'Medical exams', rows[r]?.[2], annualPeriod, sheetName)
     }
   }
   return out
@@ -590,6 +615,21 @@ function extractOperationsPulseDashboard(workbook) {
   const rows = readSheet(workbook, sheetName)
   const period = { label: '2026', start: '2026-01-01' }
   extractPairColumns(out, SOURCES.operations, 'operations_pulse_table', sheetName, rows, 'Last 30 Days', 2, 23, [[0, 1, 'Maintenance'], [3, 4, 'Security'], [6, 7, 'Supply Management'], [9, 10, 'Fleet Management'], [12, 13, 'Technology']], period)
+  return out
+}
+
+function extractOperationsExecutiveAliases(workbook) {
+  const out = []
+  const period = { label: '2026', start: '2026-01-01' }
+  const maintenanceSheet = 'Maintenance Requests'
+  const maintenanceRows = readSheet(workbook, maintenanceSheet)
+  addCanonicalDashboardPoint(out, SOURCES.operations, 'maintenance_requests_total', 'Maintenance requests', valueForLabel(maintenanceRows, 'Total Maintenance Requests', 0, 1), period, maintenanceSheet)
+  addCanonicalDashboardPoint(out, SOURCES.operations, 'maintenance_on_time_yes', 'Maintenance completed on time', valueForLabel(maintenanceRows, 'On Time', 0, 1), period, maintenanceSheet)
+
+  const fleetSheet = 'Fleet Management'
+  const fleetRows = readSheet(workbook, fleetSheet)
+  addCanonicalDashboardPoint(out, SOURCES.operations, 'fleet_miles_driven', 'Fleet miles driven', valueForLabel(fleetRows, 'Total Mileage', 9, 10), period, fleetSheet)
+  addCanonicalDashboardPoint(out, SOURCES.operations, 'fleet_trips_total', 'Fleet trips', valueForLabel(fleetRows, 'Total Transportations', 9, 10), period, fleetSheet)
   return out
 }
 
@@ -884,6 +924,7 @@ const extractors = [
   ]],
   ['Operations_2026.xlsx', (wb) => [
     ...extractOperationsPulseDashboard(wb),
+    ...extractOperationsExecutiveAliases(wb),
     ...extractDashboardTables(wb, SOURCES.operations, ['Maintenance Requests'], 'operations_dashboard'),
     ...extractOperations(wb),
   ]],
