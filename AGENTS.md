@@ -2,7 +2,7 @@
 
 Internal data & operations platform for **CFAC** (Children & Family Advocacy Center), a Benton County, Arkansas nonprofit serving child-abuse victims and families in crisis. Replaces a fragile web of ~12 manual SharePoint spreadsheets with one trustworthy data layer powering dashboards, data-quality checks, the MDT case-review workflow, and the **Hope** AI assistant.
 
-This file is binding. Companion docs: `docs/INTEGRATION-ARCHITECTURE.md` (the connector plan), `docs/COMPLIANCE.md` (HIPAA/SOC2), `.Codex/agents/*` (the 8 review gates), and the build spec `CFAC_Platform_Build_Spec.md`.
+This file is binding. Companion docs: `docs/INTEGRATION-ARCHITECTURE.md` (the connector plan), `docs/COMPLIANCE.md` (HIPAA/SOC2), `.Codex/agents/*` (the review gates), and the build spec `CFAC_Platform_Build_Spec.md`.
 
 ## Non-negotiable constraints (build-spec §2)
 1. **Highly sensitive PII.** Child-abuse case data: alleged victims/offenders, forensic interviews, medical/MH records. Treat ALL case-level data as PHI.
@@ -34,7 +34,8 @@ This file is binding. Companion docs: `docs/INTEGRATION-ARCHITECTURE.md` (the co
 Next.js 14 (App Router) + TypeScript + Supabase (Postgres, Auth, RLS) + Railway, GitHub `jimmyleast/CFAC`. Real Supabase Auth + **server-enforced MFA** (not a stub). RLS deny-all; all data via the service-role client server-side. **Hope** AI = cross-model **generate → critique → verify (block-until-pass)**, grounded in aggregate data, PHI-redacted before any model call, on-the-fly grounded view cards. LLMs: Anthropic (generator) + OpenAI/Gemini (critics).
 
 ## Process (every change)
-- **Run all 8 review gates before shipping** (`.Codex/agents/`): security, sql-data, reliability, test-gap, observability, product-acceptance, compliance, and merge-reviewer. Blockers are resolved by a human, never dismissed.
+- **Run the design/architecture gate before implementation** when a change touches shared flows, data shape or grain, external services, storage, authentication/authorization, case/order state, or admin workflows. If there is no written brief/plan for that gate to review, that is a Block until the plan exists.
+- **Run all shipping review gates before pushing** (`.Codex/agents/`): security, sql-data, reliability, test-gap, observability, product-acceptance, compliance, and merge-reviewer. All gates use the shared anti-drift rules in `.Codex/agents/_shared.md`: no guessing, cite or retract, honest severity, stay in lane, and treat missing diff/brief evidence as a ranked risk. Blockers are resolved by a human, never dismissed.
 - `verify` = lint + test + build green before pushing. Always `npm run build` (runs ESLint), not just tsc.
 - New client-side pages: create the Supabase browser client lazily (`useState(() => typeof window==='undefined' ? null : createClient())`), never at render top-level (static prerender crashes the Railway build otherwise).
 - `.env.local` secrets are gitignored — never commit. Railway holds the deployed env (NEXT_PUBLIC_SUPABASE_* must be build-available).
