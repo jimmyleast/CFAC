@@ -3,9 +3,11 @@ import { generateAnthropic } from '@/lib/hope/providers'
 import { emitAppEvent, elapsedMs } from '@/lib/telemetry/events'
 import { rateLimit } from '@/lib/hope/ratelimit'
 import { containsPHI, redactPHI } from '@/lib/compliance/phi'
+import { extractHopeAttachmentContext } from '@/lib/hope/attachment'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 const PUBLIC_SYSTEM = `You are Hope, the friendly public assistant for CFAC — the Children & Family Advocacy Center, a nonprofit in Benton County, Arkansas.
 
@@ -60,8 +62,30 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: 'You’ve sent a lot of messages quickly — please wait a moment and try again, or call us at 1-844-SAVE-A-CHILD.' }, { status: 429 })
   }
 
-  const body = await req.json().catch(() => ({})) as { message?: string }
-  const message = String(body.message || '').trim().slice(0, 1000)
+  const contentType = req.headers.get('content-type') || ''
+  let message = ''
+  let attachmentNote = ''
+  if (contentType.includes('multipart/form-data')) {
+    const form = await req.formData().catch(() => null)
+    const input = String(form?.get('message') || '').trim().slice(0, 1000)
+    const file = (form?.get('file') as File | null) || null
+    if (file) {
+      if (file.size > MAX_UPLOAD_BYTES) {
+        return NextResponse.json({ message: 'That file is too large. Please upload a file under 10 MB.' }, { status: 413 })
+      }
+      const context = await extractHopeAttachmentContext(file)
+      const lines = [`Attached file: ${file.name || 'attachment'}`]
+      if (context.text) lines.push(context.text)
+      if (context.note) attachmentNote = context.note
+      message = [input, lines.join('\n')].filter(Boolean).join('\n\n')
+    } else {
+      message = input
+    }
+  } else {
+    const body = await req.json().catch(() => ({})) as { message?: string }
+    message = String(body.message || '').trim().slice(0, 1000)
+  }
+
   if (!message) return NextResponse.json({ error: 'message required' }, { status: 400 })
 
   void emitAppEvent({ eventName: 'hope.chat.request', category: 'funnel', route: '/api/hope/public', status: 'started' })
@@ -75,7 +99,8 @@ export async function POST(req: Request) {
   try {
     const reply = await generateAnthropic(PUBLIC_SYSTEM, [{ role: 'user', content: redactPHI(message) }], 350)
     void emitAppEvent({ eventName: 'hope.chat.response', category: 'latency', route: '/api/hope/public', status: 'ok', durationMs: elapsedMs(startedAt) })
-    return NextResponse.json({ message: reply })
+    const joined = [reply, attachmentNote].filter(Boolean).join('\n\n')
+    return NextResponse.json({ message: joined })
   } catch (err: any) {
     void emitAppEvent({ eventName: 'hope.chat.error', category: 'error', route: '/api/hope/public', status: 'provider_failed', durationMs: elapsedMs(startedAt), metadata: { error: String(err?.message || err).slice(0, 300) } })
     return NextResponse.json({ message: 'I had trouble responding. Please call us at 1-844-SAVE-A-CHILD or 479-621-0385.' }, { status: 200 })

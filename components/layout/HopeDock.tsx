@@ -70,12 +70,14 @@ export default function HopeDock() {
   const [expanded, setExpanded] = useState(false)
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [attachment, setAttachment] = useState<File | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [cardBusy, setCardBusy] = useState(false)
   const [userInitials, setUserInitials] = useState('U')
   const [voiceBaseline, setVoiceBaseline] = useState<string | null>(null)
   const threadRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const attachmentRef = useRef<HTMLInputElement>(null)
   const sendRef = useRef<((q: string) => void) | null>(null)
 
   useEffect(() => {
@@ -182,19 +184,30 @@ export default function HopeDock() {
     setVoiceBaseline(listening ? input : null)
   }
 
+  function handleAttachmentChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] || null
+    setAttachment(file)
+    e.currentTarget.value = ''
+  }
+
   async function send(text?: string) {
     const fromChip = typeof text === 'string'
     const q = (fromChip ? text : input).trim()
-    if (!q || sending) return
+    if ((!q && !attachment) || sending) return
     if (!fromChip) setInput('')
     setSending(true)
-    appendMessage({ role: 'user', text: q })
+    const userText = q || (attachment ? `Uploaded document: ${attachment.name}` : '')
+    appendMessage({ role: 'user', text: userText })
     appendMessage({ role: 'hope', text: '' })
 
     try {
+      const body = new FormData()
+      body.append('query', q || 'Please review the attached document.')
+      if (attachment) body.append('file', attachment)
+
       const res = await authFetch('/api/hope/unified', {
         method: 'POST',
-        body: JSON.stringify({ query: q }),
+        body,
       })
 
       if (!res.ok) {
@@ -239,6 +252,7 @@ export default function HopeDock() {
       updateLastHope('Network error.')
     }
 
+    if (!fromChip) setAttachment(null)
     setSending(false)
   }
   sendRef.current = send // keep the ref pointed at the latest closure
@@ -473,62 +487,99 @@ export default function HopeDock() {
         </div>
 
         {/* Input */}
-        <div style={{ borderTop: `1px solid ${LINE}`, padding: '12px 12px 12px 16px', display: 'flex', alignItems: 'flex-end', gap: 10, flexShrink: 0 }}>
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send() }
-            }}
-            placeholder="Ask Hope anything..."
-            rows={1}
-            style={{
-              flex: 1,
-              background: BG,
-              border: `1px solid ${LINE}`,
-              color: TEXT,
-              fontFamily: 'var(--font-body)',
-              fontSize: 13,
-              lineHeight: 1.4,
-              padding: '10px 12px',
-              resize: 'none',
-              minHeight: 40,
-              maxHeight: 120,
-              outline: 'none',
-            }}
-            onFocus={(e) => (e.currentTarget.style.borderColor = HOPE)}
-            onBlur={(e) => (e.currentTarget.style.borderColor = LINE)}
-          />
-          <HopeVoiceButton
-            disabled={sending}
-            onTranscript={handleVoiceTranscript}
-            onListeningChange={handleVoiceListeningChange}
-            size={40}
-            label="Talk to Hope"
-          />
-          <button
-            type="button"
-            onClick={() => void send()}
-            disabled={!input.trim() || sending}
-            aria-label="Send"
-            style={{
-              width: 40,
-              height: 40,
-              minWidth: 40,
-              minHeight: 40,
-              background: input.trim() && !sending ? HOPE : BG3,
-              border: `1px solid ${input.trim() && !sending ? HOPE : LINE2}`,
-              color: input.trim() && !sending ? BG : TEXT2,
-              display: 'grid',
-              placeItems: 'center',
-              cursor: input.trim() && !sending ? 'pointer' : 'not-allowed',
-              boxSizing: 'border-box',
-              flexShrink: 0,
-            }}
-          >
-            <Icons.ArrowUp size={18} strokeWidth={2} />
-          </button>
+        <div style={{ borderTop: `1px solid ${LINE}`, padding: '12px 12px 12px 16px', flexShrink: 0 }}>
+          {attachment && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10, padding: '8px 10px', background: BG, border: `1px solid ${LINE}` }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: TEXT2, marginBottom: 2 }}>Attached document</div>
+                <div style={{ fontSize: 13, color: TEXT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 320 }}>{attachment.name}</div>
+              </div>
+              <button type="button" onClick={() => setAttachment(null)} style={{ background: 'transparent', border: `1px solid ${LINE2}`, color: TEXT2, width: 28, height: 28, display: 'grid', placeItems: 'center', cursor: 'pointer' }} aria-label="Remove attachment">
+                <Icons.X size={14} strokeWidth={1.5} />
+              </button>
+            </div>
+          )}
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send() }
+              }}
+              placeholder="Ask Hope anything..."
+              rows={1}
+              style={{
+                flex: 1,
+                background: BG,
+                border: `1px solid ${LINE}`,
+                color: TEXT,
+                fontFamily: 'var(--font-body)',
+                fontSize: 13,
+                lineHeight: 1.4,
+                padding: '10px 12px',
+                resize: 'none',
+                minHeight: 40,
+                maxHeight: 120,
+                outline: 'none',
+              }}
+              onFocus={(e) => (e.currentTarget.style.borderColor = HOPE)}
+              onBlur={(e) => (e.currentTarget.style.borderColor = LINE)}
+            />
+            <button
+              type="button"
+              onClick={() => attachmentRef.current?.click()}
+              disabled={sending}
+              aria-label="Upload document"
+              title="Upload document"
+              style={{
+                width: 40,
+                height: 40,
+                minWidth: 40,
+                minHeight: 40,
+                background: BG3,
+                border: `1px solid ${LINE2}`,
+                color: TEXT2,
+                display: 'grid',
+                placeItems: 'center',
+                cursor: sending ? 'not-allowed' : 'pointer',
+                boxSizing: 'border-box',
+                flexShrink: 0,
+              }}
+            >
+              <Icons.Paperclip size={16} strokeWidth={1.8} />
+            </button>
+            <HopeVoiceButton
+              disabled={sending}
+              onTranscript={handleVoiceTranscript}
+              onListeningChange={handleVoiceListeningChange}
+              size={40}
+              label="Talk to Hope"
+            />
+            <button
+              type="button"
+              onClick={() => void send()}
+              disabled={(!input.trim() && !attachment) || sending}
+              aria-label="Send"
+              style={{
+                width: 40,
+                height: 40,
+                minWidth: 40,
+                minHeight: 40,
+                background: (input.trim() || attachment) && !sending ? HOPE : BG3,
+                border: `1px solid ${(input.trim() || attachment) && !sending ? HOPE : LINE2}`,
+                color: (input.trim() || attachment) && !sending ? BG : TEXT2,
+                display: 'grid',
+                placeItems: 'center',
+                cursor: (input.trim() || attachment) && !sending ? 'pointer' : 'not-allowed',
+                boxSizing: 'border-box',
+                flexShrink: 0,
+              }}
+            >
+              <Icons.ArrowUp size={18} strokeWidth={2} />
+            </button>
+            <input ref={attachmentRef} type="file" onChange={handleAttachmentChange} style={{ display: 'none' }} />
+          </div>
         </div>
       </div>
 

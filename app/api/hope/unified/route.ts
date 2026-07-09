@@ -2,12 +2,32 @@ import { getRequestAuth } from '@/lib/auth/requestUser'
 import { runHopePipeline } from '@/lib/hope/pipeline'
 import { emitAppEvent, elapsedMs } from '@/lib/telemetry/events'
 import type { ChatMessage } from '@/lib/hope/providers'
+import { extractHopeAttachmentContext } from '@/lib/hope/attachment'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const MAX_HISTORY = 12
 const MAX_CONTENT = 4000
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+
+async function parseHopeRequest(req: Request) {
+  const contentType = req.headers.get('content-type') || ''
+  if (contentType.includes('multipart/form-data')) {
+    const form = await req.formData().catch(() => null)
+    if (!form) return { query: '', history: [] as ChatMessage[], attachment: null as File | null }
+    const query = String(form.get('query') || '').trim().slice(0, MAX_CONTENT)
+    return { query, history: [] as ChatMessage[], attachment: form.get('file') as File | null }
+  }
+
+  const body = await req.json().catch(() => ({})) as { query?: string; history?: ChatMessage[] }
+  const query = String(body.query || '').trim().slice(0, MAX_CONTENT)
+  const history: ChatMessage[] = (Array.isArray(body.history) ? body.history : [])
+    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+    .slice(-MAX_HISTORY)
+    .map((m) => ({ role: m.role, content: String(m.content).slice(0, MAX_CONTENT) }))
+  return { query, history, attachment: null as File | null }
+}
 
 export async function POST(req: Request) {
   const startedAt = Date.now()
@@ -15,13 +35,18 @@ export async function POST(req: Request) {
   if (!user) return new Response('Unauthorized', { status: 401 })
   if (mfaRequired) return new Response('mfa_required', { status: 403 })
 
-  const body = await req.json().catch(() => ({})) as { query?: string; history?: ChatMessage[] }
-  const query = String(body.query || '').trim().slice(0, MAX_CONTENT)
+  const { query, history, attachment } = await parseHopeRequest(req)
   if (!query) return new Response('query required', { status: 400 })
-  const history: ChatMessage[] = (Array.isArray(body.history) ? body.history : [])
-    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
-    .slice(-MAX_HISTORY)
-    .map((m) => ({ role: m.role, content: String(m.content).slice(0, MAX_CONTENT) }))
+
+  let prompt = query
+  if (attachment) {
+    if (attachment.size > MAX_UPLOAD_BYTES) return new Response('attachment too large', { status: 413 })
+    const context = await extractHopeAttachmentContext(attachment)
+    const attachmentLines = [`Attached file: ${attachment.name || 'attachment'}`]
+    if (context.text) attachmentLines.push(context.text)
+    if (context.note) attachmentLines.push(context.note)
+    prompt = [query, attachmentLines.join('\n')].filter(Boolean).join('\n\n')
+  }
 
   void emitAppEvent({ eventName: 'hope.chat.request', category: 'funnel', userId: user.id, route: '/api/hope/unified', status: 'started' })
 
@@ -36,7 +61,7 @@ export async function POST(req: Request) {
       try {
         // Live stage status so the dock shows progress instead of a dead spinner
         // during the (blocking) generate→critique→verify pipeline.
-        const result = await runHopePipeline(query, history, undefined, (s) => send({ status: s }))
+        const result = await runHopePipeline(prompt, history, undefined, (s) => send({ status: s }))
         send({ status: '' }) // clear status; the answer follows
         for (const w of result.answer.split(/(\s+)/)) if (w) send({ token: w })
         if (result.card) send({ card: result.card })

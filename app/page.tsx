@@ -13,9 +13,11 @@ export default function LandingPage() {
   ])
   const [loading, setLoading] = useState(false)
   const [text, setText] = useState('')
+  const [attachment, setAttachment] = useState<File | null>(null)
   const [installPrompt, setInstallPrompt] = useState<any>(null)
   const [installed, setInstalled] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const attachmentRef = useRef<HTMLInputElement>(null)
 
   // Check if user is already logged in → redirect to role-based home
   useEffect(() => {
@@ -46,23 +48,39 @@ export default function LandingPage() {
   }, [messages])
 
   async function send() {
-    if (!text.trim()) return
-    const userMsg = { role: 'user', content: text }
+    if (!text.trim() && !attachment) return
+    const userText = text.trim() || (attachment ? `Uploaded document: ${attachment.name}` : '')
+    const userMsg = { role: 'user', content: userText }
     setMessages(prev => [...prev, userMsg])
     setText('')
     setLoading(true)
     try {
-      const res = await fetch('/api/hope/public', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, history: messages }),
-      })
+      let res: Response
+      if (attachment) {
+        const body = new FormData()
+        body.append('message', text.trim() || 'Please review the attached document.')
+        body.append('file', attachment)
+        res = await fetch('/api/hope/public', { method: 'POST', body })
+      } else {
+        res = await fetch('/api/hope/public', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text, history: messages }),
+        })
+      }
       const data = await res.json()
       setMessages(prev => [...prev, { role: 'hope', content: data.message }])
     } catch {
       setMessages(prev => [...prev, { role: 'hope', content: 'I had trouble with that. Try again?' }])
     }
+    setAttachment(null)
     setLoading(false)
+  }
+
+  function handleAttachmentChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] || null
+    setAttachment(file)
+    e.currentTarget.value = ''
   }
 
   async function handleInstall() {
@@ -173,6 +191,12 @@ export default function LandingPage() {
 
       {/* Input */}
       <div style={{ padding: '12px 24px 24px', borderTop: '1px solid rgba(255,255,255,0.08)', maxWidth: 640, width: '100%', margin: '0 auto' }}>
+        {attachment && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8, padding: '8px 10px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <div style={{ minWidth: 0, fontSize: 13, color: '#F0EDE6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{attachment.name}</div>
+            <button onClick={() => setAttachment(null)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#8A8680', width: 28, height: 28, cursor: 'pointer' }} aria-label="Remove attachment">x</button>
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 8 }}>
           <textarea
             value={text}
@@ -186,11 +210,13 @@ export default function LandingPage() {
               borderRadius: 0, color: '#F0EDE6', fontFamily: 'inherit', outline: 'none',
             }}
           />
-          <button onClick={send} disabled={!text.trim() || loading} style={{
+          <button onClick={() => attachmentRef.current?.click()} disabled={loading} style={{ minWidth: 44, height: 44, padding: '0 10px', fontSize: 12, background: 'rgba(255,255,255,0.04)', color: '#F0EDE6', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 0, cursor: loading ? 'not-allowed' : 'pointer' }} aria-label="Upload document">Attach</button>
+          <button onClick={send} disabled={(!text.trim() && !attachment) || loading} style={{
             minWidth: 44, height: 44, padding: 0, fontSize: 18, background: '#1AAFA0',
             color: '#0A0A0A', border: 'none', borderRadius: 0, cursor: 'pointer',
-            fontWeight: 700, opacity: !text.trim() || loading ? 0.4 : 1,
+            fontWeight: 700, opacity: (!text.trim() && !attachment) || loading ? 0.4 : 1,
           }}>→</button>
+          <input ref={attachmentRef} type="file" onChange={handleAttachmentChange} style={{ display: 'none' }} />
         </div>
       </div>
     </div>
