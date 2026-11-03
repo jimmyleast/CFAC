@@ -6,6 +6,13 @@ import { upsertUserProfile } from '@/lib/admin'
 import { resolveAppBaseUrl } from '@/lib/url'
 import { emailDisabledJson, isEmailSendingEnabled } from '@/lib/email-control'
 import { isLoginAllowed } from '@/lib/auth/allowlist'
+import { authEmailRateLimit, clientIp } from '@/lib/auth/ratelimit'
+import { emitAppEvent } from '@/lib/telemetry/events'
+
+// Fire-and-forget audit/ops events (no email addresses in metadata).
+function trackFailed(status: string) {
+  void emitAppEvent({ eventName: 'auth.magic_link.failed', category: 'auth', route: '/api/auth/magic-link', status })
+}
 
 export async function POST(request: Request) {
   try {
@@ -17,18 +24,27 @@ export async function POST(request: Request) {
     }
 
     if (!isLoginAllowed(normalizedEmail)) {
+      trackFailed('not_allowed')
       return NextResponse.json({ error: 'This email isn’t permitted to sign in. Use your CFAC email or ask an admin to invite you.' }, { status: 403 })
     }
 
+    if (!authEmailRateLimit(clientIp(request)).ok) {
+      trackFailed('rate_limited')
+      return NextResponse.json({ error: 'Too many requests. Try again in a few minutes.' }, { status: 429 })
+    }
+
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      trackFailed('auth_not_configured')
       return NextResponse.json({ error: 'Server auth is not configured.' }, { status: 500 })
     }
 
     if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) {
+      trackFailed('email_not_configured')
       return NextResponse.json({ error: 'Email delivery is not configured.' }, { status: 500 })
     }
 
     if (!isEmailSendingEnabled()) {
+      trackFailed('email_disabled')
       return NextResponse.json(emailDisabledJson({ success: false }), { status: 503 })
     }
 
@@ -58,12 +74,20 @@ export async function POST(request: Request) {
       })
 
       if (createUserResponse.error) {
+        trackFailed('create_user_error')
         return NextResponse.json({ error: createUserResponse.error.message }, { status: 500 })
       }
 
       // Create user profile for new users
       if (createUserResponse.data?.user) {
         await upsertUserProfile(createUserResponse.data.user.id, normalizedEmail)
+        // Audit: an account was auto-provisioned through the public magic-link path.
+        void emitAppEvent({
+          eventName: 'auth.magic_link.user_created',
+          category: 'auth',
+          userId: createUserResponse.data.user.id,
+          route: '/api/auth/magic-link',
+        })
       }
 
       linkResponse = await supabaseAdmin.auth.admin.generateLink({
@@ -76,11 +100,13 @@ export async function POST(request: Request) {
     }
 
     if (linkResponse.error) {
+      trackFailed('link_error')
       return NextResponse.json({ error: linkResponse.error.message }, { status: 500 })
     }
 
     const actionLink = (linkResponse.data as any)?.properties?.action_link || (linkResponse.data as any)?.action_link
     if (!actionLink) {
+      trackFailed('no_action_link')
       return NextResponse.json({ error: 'Magic link generation failed.' }, { status: 500 })
     }
 
@@ -108,12 +134,15 @@ export async function POST(request: Request) {
     })
 
     if ((emailResult as any).error) {
+      trackFailed('send_error')
       return NextResponse.json({ error: (emailResult as any).error.message || 'Failed to send email.' }, { status: 500 })
     }
 
+    void emitAppEvent({ eventName: 'auth.magic_link.sent', category: 'auth', route: '/api/auth/magic-link' })
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Magic link error:', error)
+    trackFailed('unexpected_error')
     return NextResponse.json({ error: 'An unexpected error occurred.' }, { status: 500 })
   }
 }

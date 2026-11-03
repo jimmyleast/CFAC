@@ -4,8 +4,6 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Pinwheel from '@/components/Pinwheel'
 
-const ALLOWED_SIGNUP_DOMAINS = ['cfacbentonco.com']
-
 const inputStyle: React.CSSProperties = {
   width: '100%', background: '#1C1C20',
   border: '1px solid rgba(255,255,255,0.12)',
@@ -21,7 +19,7 @@ const labelStyle: React.CSSProperties = {
 
 function friendlyError(msg: string): string {
   if (/invalid login credentials/i.test(msg)) return 'Incorrect email or password.'
-  if (/email not confirmed/i.test(msg)) return 'Incorrect email or password.'
+  if (/email not confirmed/i.test(msg)) return 'Your account isn’t confirmed yet. Use “Email Sign-In Link” above to finish signing in.'
   if (/user already registered/i.test(msg)) return 'An account with this email already exists. Try signing in instead.'
   if (/missing required environment variable/i.test(msg)) return msg
   if (/failed to fetch|network/i.test(msg)) return 'Could not reach the auth service. Verify the production environment and try again.'
@@ -64,20 +62,18 @@ function PasswordInput({ value, onChange, placeholder, disabled, id }: {
 }
 
 export default function LoginPage() {
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin')
+  const [mode, setMode] = useState<'signin' | 'magiclink'>('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
-  function switchMode(m: 'signin' | 'signup') {
+  function switchMode(m: 'signin' | 'magiclink') {
     setMode(m)
     setError('')
     setSuccess('')
     setPassword('')
-    setConfirmPassword('')
   }
 
   async function handleResetPassword() {
@@ -114,7 +110,9 @@ export default function LoginPage() {
 
     function safeNextPath() {
       const next = new URLSearchParams(window.location.search).get('next') || ''
-      return next.startsWith('/') && !next.startsWith('//') ? next : '/hub'
+      // Reject backslashes too: browsers normalize \ to /, so /\evil.com becomes
+      // a scheme-relative external redirect.
+      return next.startsWith('/') && !next.startsWith('//') && !next.includes('\\') ? next : '/hub'
     }
 
     async function finishLoginRedirect() {
@@ -165,55 +163,35 @@ export default function LoginPage() {
     }
   }
 
-  async function handleSignUp(e: React.FormEvent) {
+  async function handleMagicLink(e: React.FormEvent) {
     e.preventDefault()
     setError('')
-    const domain = email.trim().split('@')[1]?.toLowerCase()
-    if (!ALLOWED_SIGNUP_DOMAINS.includes(domain)) {
-      setError(`Sign-up is restricted to ${ALLOWED_SIGNUP_DOMAINS.join(' and ')} email addresses.`)
-      return
-    }
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters.')
-      return
-    }
-    if (password !== confirmPassword) {
-      setError('Passwords do not match.')
-      return
-    }
+    setSuccess('')
     setLoading(true)
     try {
-      const supabase = createClient()
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
+      const response = await fetch('/api/auth/magic-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
       })
-      if (error) { setError(friendlyError(error.message)); return }
-      // Create user_profiles row immediately after signup
-      if (data.user) {
-        await fetch('/api/auth/setup-profile', { method: 'POST' }).catch(() => null)
-      }
-      // If email confirmation is disabled, Supabase returns a session immediately
-      if (data.session) {
-        window.location.assign('/hub')
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        // Keep the raw status + server error in the console for support/triage.
+        console.error('Magic link request failed:', response.status, payload?.error)
+        setError(friendlyError(payload?.error || 'Unable to send a sign-in link right now.'))
         return
       }
-      setMode('signin')
-      setError('')
-      setSuccess('Account created — you can now sign in.')
-      setPassword('')
-      setConfirmPassword('')
+      setSuccess('Check your inbox — we emailed you a sign-in link. It may take a minute to arrive.')
     } catch (err) {
-      console.error('Sign up error:', err)
-      const message = err instanceof Error ? err.message : 'An unexpected error occurred. Please try again.'
-      setError(friendlyError(message))
+      console.error('Magic link error:', err)
+      setError('An unexpected error occurred. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
   const btnSignInDisabled = loading || !email.trim() || !password
-  const btnSignUpDisabled = loading || !email.trim() || !password || !confirmPassword
+  const btnMagicLinkDisabled = loading || !email.trim()
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', fontFamily: 'var(--font-dm-sans), DM Sans, sans-serif' }}>
@@ -253,7 +231,7 @@ export default function LoginPage() {
 
           {/* Tab toggle */}
           <div style={{ display: 'flex', gap: 0, marginBottom: 36, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-            {(['signin', 'signup'] as const).map((m) => {
+            {(['signin', 'magiclink'] as const).map((m) => {
               const active = mode === m
               return (
                 <button
@@ -269,7 +247,7 @@ export default function LoginPage() {
                     fontFamily: 'var(--font-dm-sans), DM Sans, sans-serif',
                   }}
                 >
-                  {m === 'signin' ? 'Sign In' : 'Sign Up'}
+                  {m === 'signin' ? 'Sign In' : 'Email Sign-In Link'}
                 </button>
               )
             })}
@@ -324,11 +302,14 @@ export default function LoginPage() {
               </button>
             </form>
           ) : (
-            <form onSubmit={handleSignUp} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <form onSubmit={handleMagicLink} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <p style={{ color: '#8A8680', fontSize: 13, margin: 0, lineHeight: 1.5 }}>
+                New here, or no password yet? Enter your CFAC email and we’ll send you a sign-in link.
+              </p>
               <div>
-                <label style={labelStyle} htmlFor="su-email">Email address</label>
+                <label style={labelStyle} htmlFor="ml-email">Email address</label>
                 <input
-                  id="su-email"
+                  id="ml-email"
                   type="email" value={email} onChange={e => setEmail(e.target.value)}
                   placeholder="you@cfacbentonco.com" required disabled={loading}
                   style={inputStyle}
@@ -336,25 +317,17 @@ export default function LoginPage() {
                   onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.12)' }}
                 />
               </div>
-              <div>
-                <label style={labelStyle} htmlFor="su-pw">Password</label>
-                <PasswordInput id="su-pw" value={password} onChange={setPassword} placeholder="Min 8 characters" disabled={loading} />
-              </div>
-              <div>
-                <label style={labelStyle} htmlFor="su-cpw">Confirm password</label>
-                <PasswordInput id="su-cpw" value={confirmPassword} onChange={setConfirmPassword} placeholder="••••••••" disabled={loading} />
-              </div>
               {error && <p style={{ color: '#C4605A', fontSize: 13, margin: 0, lineHeight: 1.5 }}>{error}</p>}
               <button
-                type="submit" disabled={btnSignUpDisabled}
+                type="submit" disabled={btnMagicLinkDisabled}
                 style={{
-                  width: '100%', background: btnSignUpDisabled ? 'rgba(91,163,217,0.35)' : '#5BA3D9',
+                  width: '100%', background: btnMagicLinkDisabled ? 'rgba(91,163,217,0.35)' : '#5BA3D9',
                   border: 'none', borderRadius: 8, padding: '13px 0', color: '#0D0D0F',
-                  fontWeight: 600, fontSize: 14, cursor: btnSignUpDisabled ? 'not-allowed' : 'pointer',
+                  fontWeight: 600, fontSize: 14, cursor: btnMagicLinkDisabled ? 'not-allowed' : 'pointer',
                   fontFamily: 'var(--font-dm-sans), DM Sans, sans-serif', marginTop: 4,
                 }}
               >
-                {loading ? 'Creating account...' : 'Create Account'}
+                {loading ? 'Sending...' : 'Email Me a Sign-In Link'}
               </button>
               <p style={{ color: '#454340', fontSize: 12, textAlign: 'center', margin: 0 }}>
                 Restricted to @cfacbentonco.com addresses.

@@ -2,6 +2,7 @@ import { createClient as createSupabaseClient, type User } from '@supabase/supab
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { getSupabasePublicConfig } from '@/lib/supabase/config'
 import { getAdminClient } from '@/lib/admin'
+import { isLoginAllowed } from '@/lib/auth/allowlist'
 
 function extractBearerToken(request: Request): string | null {
   const authHeader = request.headers.get('authorization') || ''
@@ -22,6 +23,14 @@ function hasVerifiedFactor(user: User): boolean {
   return Array.isArray(factors) && factors.some((f) => f?.status === 'verified')
 }
 
+// Server-side allowlist: a session for an off-domain, non-admin email is treated as
+// unauthenticated (fail closed). This holds regardless of how the session was created
+// (password, magic link, or direct Supabase API), so no client path can bypass it.
+function allowlisted(user: User | null): User | null {
+  if (!user) return null
+  return user.email && isLoginAllowed(user.email) ? user : null
+}
+
 // Bulletproof request auth: cookie session first, bearer token fallback.
 export async function getRequestUser(request: Request): Promise<User | null> {
   return (await getRequestAuth(request)).user
@@ -36,7 +45,8 @@ export async function getRequestAuth(request: Request): Promise<{ user: User | n
   // Cookie session first.
   const serverClient = createServerClient()
   const { data: cookieData } = await serverClient.auth.getUser()
-  if (cookieData.user) {
+  const cookieUser = allowlisted(cookieData.user)
+  if (cookieUser) {
     let mfaRequired = false
     try {
       const { data: aal, error } = await serverClient.auth.mfa.getAuthenticatorAssuranceLevel()
@@ -48,7 +58,7 @@ export async function getRequestAuth(request: Request): Promise<{ user: User | n
     } catch {
       mfaRequired = true // fail CLOSED on AAL read error
     }
-    return { user: cookieData.user, mfaRequired }
+    return { user: cookieUser, mfaRequired }
   }
 
   // Bearer token fallback.
@@ -59,6 +69,7 @@ export async function getRequestAuth(request: Request): Promise<{ user: User | n
   const anonClient = createSupabaseClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false } })
   let user = (await anonClient.auth.getUser(token)).data.user
   if (!user) user = (await getAdminClient().auth.getUser(token)).data.user
+  user = allowlisted(user)
   if (!user) return { user: null, mfaRequired: false }
 
   // Enrolled-but-not-elevated: token's aal claim must be aal2.

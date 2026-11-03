@@ -5,6 +5,7 @@ import { getSupabasePublicConfig } from '@/lib/supabase/config'
 import { resolveAppBaseUrl } from '@/lib/url'
 import { emailDisabledJson, isEmailSendingEnabled } from '@/lib/email-control'
 import { isLoginAllowed } from '@/lib/auth/allowlist'
+import { authEmailRateLimit, clientIp } from '@/lib/auth/ratelimit'
 
 export async function POST(request: Request) {
   try {
@@ -19,6 +20,11 @@ export async function POST(request: Request) {
     // must never be minted for an arbitrary (off-domain, non-admin) address.
     if (!isLoginAllowed(normalizedEmail)) {
       return NextResponse.json({ error: 'This email isn’t permitted.' }, { status: 403 })
+    }
+
+    // Shared limiter with the magic-link route — both mint credential-bearing emails.
+    if (!authEmailRateLimit(clientIp(request)).ok) {
+      return NextResponse.json({ error: 'Too many requests. Try again in a few minutes.' }, { status: 429 })
     }
 
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {

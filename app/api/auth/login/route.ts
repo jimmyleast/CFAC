@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { upsertUserProfile } from '@/lib/admin'
+import { isLoginAllowed } from '@/lib/auth/allowlist'
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}))
@@ -16,6 +17,13 @@ export async function POST(request: Request) {
 
   if (error) {
     // Generic message — do not leak Supabase error details (avoids user enumeration).
+    return NextResponse.json({ error: 'Invalid email or password.' }, { status: 401 })
+  }
+
+  // Server-side allowlist: valid credentials for an off-domain, non-admin account
+  // do not grant a session. Same generic message (no enumeration signal).
+  if (!data.user?.email || !isLoginAllowed(data.user.email)) {
+    await supabase.auth.signOut()
     return NextResponse.json({ error: 'Invalid email or password.' }, { status: 401 })
   }
 
