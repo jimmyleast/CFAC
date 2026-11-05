@@ -28,7 +28,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'This email isn’t permitted to sign in. Use your CFAC email or ask an admin to invite you.' }, { status: 403 })
     }
 
-    if (!authEmailRateLimit(clientIp(request)).ok) {
+    const rateLimitResult = authEmailRateLimit(clientIp(request))
+    if (!rateLimitResult.ok) {
       trackFailed('rate_limited')
       return NextResponse.json({ error: 'Too many requests. Try again in a few minutes.' }, { status: 429 })
     }
@@ -48,7 +49,16 @@ export async function POST(request: Request) {
       return NextResponse.json(emailDisabledJson({ success: false }), { status: 503 })
     }
 
-    const { url } = getSupabasePublicConfig()
+    let pubConfig
+    try {
+      pubConfig = getSupabasePublicConfig()
+    } catch (err) {
+      trackFailed('config_error')
+      console.error('Failed to get Supabase config:', err)
+      return NextResponse.json({ error: 'Server configuration error.' }, { status: 500 })
+    }
+
+    const { url } = pubConfig
     const supabaseAdmin = createClient(url, process.env.SUPABASE_SERVICE_ROLE_KEY, {
       auth: {
         autoRefreshToken: false,
@@ -141,8 +151,10 @@ export async function POST(request: Request) {
     void emitAppEvent({ eventName: 'auth.magic_link.sent', category: 'auth', route: '/api/auth/magic-link' })
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Magic link error:', error)
+    console.error('Magic link error:', error instanceof Error ? error.message : String(error), error instanceof Error ? error.stack : '')
     trackFailed('unexpected_error')
-    return NextResponse.json({ error: 'An unexpected error occurred.' }, { status: 500 })
+    return NextResponse.json({ 
+      error: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : 'An unexpected error occurred.' 
+    }, { status: 500 })
   }
 }
