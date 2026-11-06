@@ -19,11 +19,10 @@ export type AppEventName =
   | 'admin.invite.sent'
   | 'admin.invite.failed'
   | 'auth.mfa.admin_reset'
-  // Magic-link sign-in (the primary onboarding path): request outcomes + the audit
-  // trail for auto-provisioned accounts — see app/api/auth/magic-link/route.ts.
-  | 'auth.magic_link.sent'
-  | 'auth.magic_link.failed'
-  | 'auth.magic_link.user_created'
+  // Self-service sign-up (allowlist-gated, no email verification): audit trail for
+  // auto-provisioned accounts — see app/api/auth/register/route.ts.
+  | 'auth.register.created'
+  | 'auth.register.failed'
   | 'definition.updated'
   | 'mapping.changed'
   | 'data.exceptions.scanned'

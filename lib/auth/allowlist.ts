@@ -15,7 +15,7 @@ export function allowedDomains(): string[] {
 }
 
 function emailDomain(email: string): string {
-  return email.split('@')[1]?.toLowerCase() || ''
+  return email.slice(email.lastIndexOf('@') + 1).toLowerCase()
 }
 
 /** True if this email is permitted to sign in (on an allowed domain, or an admin). */

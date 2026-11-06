@@ -61,15 +61,37 @@ function PasswordInput({ value, onChange, placeholder, disabled, id }: {
   )
 }
 
+function safeNextPath() {
+  const next = new URLSearchParams(window.location.search).get('next') || ''
+  // Reject backslashes too: browsers normalize \ to /, so /\evil.com becomes
+  // a scheme-relative external redirect.
+  return next.startsWith('/') && !next.startsWith('//') && !next.includes('\\') ? next : '/hub'
+}
+
+async function finishLoginRedirect() {
+  await fetch('/api/auth/setup-profile', { method: 'POST' }).catch(() => null)
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const meRes = await fetch('/api/me', { cache: 'no-store' }).catch(() => null)
+    if (meRes?.ok) {
+      window.location.assign(safeNextPath())
+      return
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200))
+  }
+
+  window.location.assign(safeNextPath())
+}
+
 export default function LoginPage() {
-  const [mode, setMode] = useState<'signin' | 'magiclink'>('signin')
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
-  function switchMode(m: 'signin' | 'magiclink') {
+  function switchMode(m: 'signin' | 'signup') {
     setMode(m)
     setError('')
     setSuccess('')
@@ -108,28 +130,6 @@ export default function LoginPage() {
     const normalizedEmail = email.trim().toLowerCase()
     const supabase = createClient()
 
-    function safeNextPath() {
-      const next = new URLSearchParams(window.location.search).get('next') || ''
-      // Reject backslashes too: browsers normalize \ to /, so /\evil.com becomes
-      // a scheme-relative external redirect.
-      return next.startsWith('/') && !next.startsWith('//') && !next.includes('\\') ? next : '/hub'
-    }
-
-    async function finishLoginRedirect() {
-      await fetch('/api/auth/setup-profile', { method: 'POST' }).catch(() => null)
-
-      for (let attempt = 0; attempt < 3; attempt += 1) {
-        const meRes = await fetch('/api/me', { cache: 'no-store' }).catch(() => null)
-        if (meRes?.ok) {
-          window.location.assign(safeNextPath())
-          return
-        }
-        await new Promise((resolve) => setTimeout(resolve, 200))
-      }
-
-      window.location.assign(safeNextPath())
-    }
-
     try {
       const { error: clientError } = await supabase.auth.signInWithPassword({
         email: normalizedEmail,
@@ -163,27 +163,33 @@ export default function LoginPage() {
     }
   }
 
-  async function handleMagicLink(e: React.FormEvent) {
+  async function handleSignUp(e: React.FormEvent) {
     e.preventDefault()
     setError('')
     setSuccess('')
     setLoading(true)
     try {
-      const response = await fetch('/api/auth/magic-link', {
+      const normalizedEmail = email.trim().toLowerCase()
+      const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({ email: normalizedEmail, password }),
       })
       const payload = await response.json().catch(() => ({}))
       if (!response.ok) {
-        // Keep the raw status + server error in the console for support/triage.
-        console.error('Magic link request failed:', response.status, payload?.error)
-        setError(friendlyError(payload?.error || 'Unable to send a sign-in link right now.'))
+        console.error('Sign up failed:', response.status, payload?.error)
+        setError(payload?.error || 'Unable to create your account right now.')
         return
       }
-      setSuccess('Check your inbox — we emailed you a sign-in link. It may take a minute to arrive.')
+
+      const { error: signInError } = await createClient().auth.signInWithPassword({ email: normalizedEmail, password })
+      if (signInError) {
+        setSuccess('Account created. Switch to Sign In and use your new password.')
+        return
+      }
+      await finishLoginRedirect()
     } catch (err) {
-      console.error('Magic link error:', err)
+      console.error('Sign up error:', err)
       setError('An unexpected error occurred. Please try again.')
     } finally {
       setLoading(false)
@@ -191,7 +197,7 @@ export default function LoginPage() {
   }
 
   const btnSignInDisabled = loading || !email.trim() || !password
-  const btnMagicLinkDisabled = loading || !email.trim()
+  const btnSignUpDisabled = loading || !email.trim() || password.length < 10
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', fontFamily: 'var(--font-dm-sans), DM Sans, sans-serif' }}>
@@ -231,7 +237,7 @@ export default function LoginPage() {
 
           {/* Tab toggle */}
           <div style={{ display: 'flex', gap: 0, marginBottom: 36, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-            {(['signin', 'magiclink'] as const).map((m) => {
+            {(['signin', 'signup'] as const).map((m) => {
               const active = mode === m
               return (
                 <button
@@ -247,7 +253,7 @@ export default function LoginPage() {
                     fontFamily: 'var(--font-dm-sans), DM Sans, sans-serif',
                   }}
                 >
-                  {m === 'signin' ? 'Sign In' : 'Email Sign-In Link'}
+                  {m === 'signin' ? 'Sign In' : 'Create Account'}
                 </button>
               )
             })}
@@ -302,14 +308,14 @@ export default function LoginPage() {
               </button>
             </form>
           ) : (
-            <form onSubmit={handleMagicLink} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <form onSubmit={handleSignUp} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <p style={{ color: '#8A8680', fontSize: 13, margin: 0, lineHeight: 1.5 }}>
-                New here, or no password yet? Enter your CFAC email and we’ll send you a sign-in link.
+                New here? Use your CFAC email and choose a password. No email confirmation needed.
               </p>
               <div>
-                <label style={labelStyle} htmlFor="ml-email">Email address</label>
+                <label style={labelStyle} htmlFor="su-email">Email address</label>
                 <input
-                  id="ml-email"
+                  id="su-email"
                   type="email" value={email} onChange={e => setEmail(e.target.value)}
                   placeholder="you@cfacbentonco.com" required disabled={loading}
                   style={inputStyle}
@@ -317,17 +323,21 @@ export default function LoginPage() {
                   onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.12)' }}
                 />
               </div>
+              <div>
+                <label style={labelStyle} htmlFor="su-pw">Choose a password (10+ characters)</label>
+                <PasswordInput id="su-pw" value={password} onChange={setPassword} placeholder="••••••••••" disabled={loading} />
+              </div>
               {error && <p style={{ color: '#C4605A', fontSize: 13, margin: 0, lineHeight: 1.5 }}>{error}</p>}
               <button
-                type="submit" disabled={btnMagicLinkDisabled}
+                type="submit" disabled={btnSignUpDisabled}
                 style={{
-                  width: '100%', background: btnMagicLinkDisabled ? 'rgba(91,163,217,0.35)' : '#5BA3D9',
+                  width: '100%', background: btnSignUpDisabled ? 'rgba(91,163,217,0.35)' : '#5BA3D9',
                   border: 'none', borderRadius: 8, padding: '13px 0', color: '#0D0D0F',
-                  fontWeight: 600, fontSize: 14, cursor: btnMagicLinkDisabled ? 'not-allowed' : 'pointer',
+                  fontWeight: 600, fontSize: 14, cursor: btnSignUpDisabled ? 'not-allowed' : 'pointer',
                   fontFamily: 'var(--font-dm-sans), DM Sans, sans-serif', marginTop: 4,
                 }}
               >
-                {loading ? 'Sending...' : 'Email Me a Sign-In Link'}
+                {loading ? 'Creating account...' : 'Create Account'}
               </button>
               <p style={{ color: '#454340', fontSize: 12, textAlign: 'center', margin: 0 }}>
                 Restricted to @cfacbentonco.com addresses.
