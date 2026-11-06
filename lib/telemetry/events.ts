@@ -16,8 +16,6 @@ export type AppEventName =
   | 'export.requested'
   | 'export.completed'
   | 'export.failed'
-  | 'admin.invite.sent'
-  | 'admin.invite.failed'
   | 'auth.mfa.admin_reset'
   // Self-service sign-up (allowlist-gated, no email verification): audit trail for
   // auto-provisioned accounts — see app/api/auth/register/route.ts.

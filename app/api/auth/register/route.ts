@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { getSupabasePublicConfig } from '@/lib/supabase/config'
 import { upsertUserProfile, isAdminEmail } from '@/lib/admin'
-import { isLoginAllowed } from '@/lib/auth/allowlist'
+import { isLoginAllowed, allowedDomains } from '@/lib/auth/allowlist'
 import { authEmailRateLimit, clientIp } from '@/lib/auth/ratelimit'
 import { emitAppEvent } from '@/lib/telemetry/events'
 
@@ -32,9 +32,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'This email isn’t permitted to sign up. Use your CFAC email or ask an admin.' }, { status: 403 })
     }
 
-    // Admin addresses are never self-registerable (no email proof + admin flag would
-    // be a takeover); an existing admin or Supabase dashboard provisions those.
-    if (isAdminEmail(email)) {
+    // An off-domain admin address (e.g. the owner's Gmail) can't be self-registered: with no
+    // email proof, anyone could claim it. Those are provisioned in the Supabase dashboard.
+    if (isAdminEmail(email) && !allowedDomains().includes(email.slice(email.lastIndexOf('@') + 1))) {
       trackFailed('admin_email_blocked')
       return NextResponse.json({ error: 'This account must be created by an administrator.' }, { status: 403 })
     }

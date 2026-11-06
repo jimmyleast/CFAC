@@ -7,11 +7,11 @@
   `POST /api/auth/register`, which enforces the staff allowlist
   (`lib/auth/allowlist.ts`, default `@cfacbentonco.com`), creates an already
   confirmed account with the chosen password (min 10 chars), and signs the user in.
-  **Admin addresses (`ADMIN_EMAILS` + built-ins) are refused here** — create those in
+  **Off-domain admin addresses (e.g. the owner's Gmail) are refused here** — create those in
   Supabase → Authentication → Users → Add user (Auto Confirm User) instead. An existing
   *confirmed* account is never overwritten (409); a never-confirmed leftover from the
   old Sign Up tab is adopted (password set + confirmed).
-- **Admin invite** — Admin → People → Invite (Resend-backed; needs a verified sender domain).
+- No invite feature: staff open the app link and use Create Account.
 
 **Trade-off to know:** because no email is verified, anyone who knows an allowed address
 that has not registered yet could register it first. Server-enforced MFA (enrolled at
@@ -31,8 +31,8 @@ and `auth.register.created` (audit trail for every account created).
 
 "Forgot password?" no longer exists — the app sends **no** self-service emails. Reset a
 password in Supabase → Authentication → Users → (user) → Send/Update password, or delete
-the user so they can re-register via Create Account. (Admin → People → Invite is the only
-remaining email feature and is admin-initiated.)
+the user so they can re-register via Create Account. There is no invite feature and the
+app sends no emails at all.
 
 ## Allowlist enforcement (server-side)
 
@@ -47,6 +47,6 @@ a usable session even with valid credentials:
 ## Operator settings (Supabase dashboard)
 
 - **Authentication → Sign In / Up → "Allow new users to sign up" should be OFF.**
-  The app provisions accounts through the service-role admin API (register + admin
-  invite), which is unaffected by this toggle. Leaving it on allows direct anon-API
+  The app provisions accounts through the service-role admin API (register), which is
+  unaffected by this toggle. Leaving it on allows direct anon-API
   signups that bypass the app (and the allowlist) entirely.

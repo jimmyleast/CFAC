@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import * as Icons from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 const GOLD = '#5BA3D9'
@@ -31,7 +30,6 @@ export default function PeoplePage() {
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
   const [q, setQ] = useState('')
-  const [inviteOpen, setInviteOpen] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
 
   async function load() {
@@ -78,12 +76,8 @@ export default function PeoplePage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
         <div>
           <h1 style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 30, color: TEXT, margin: '0 0 4px' }}>People</h1>
-          <p style={{ color: TEXT2, fontSize: 13, margin: 0 }}>CFAC staff with access to this platform.</p>
+          <p style={{ color: TEXT2, fontSize: 13, margin: 0 }}>CFAC staff with access to this platform. Staff add themselves from the sign-in page (Create Account).</p>
         </div>
-        <button onClick={() => setInviteOpen(true)}
-          style={{ background: GOLD, color: '#0D0D0F', border: 'none', borderRadius: 8, padding: '10px 16px', fontWeight: 600, fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Icons.UserPlus size={16} strokeWidth={2} /> Invite
-        </button>
       </div>
 
       <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search by name, email, or title…"
@@ -120,40 +114,6 @@ export default function PeoplePage() {
         {!loading && !filtered.length && !err && <div style={{ color: TEXT4, fontStyle: 'italic' }}>No people found.</div>}
       </div>
 
-      {inviteOpen && <InviteModal onClose={() => setInviteOpen(false)} onDone={() => { setInviteOpen(false); load() }} />}
-    </div>
-  )
-}
-
-function InviteModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
-  const [email, setEmail] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [msg, setMsg] = useState<string | null>(null)
-
-  async function send() {
-    if (!email.trim()) return
-    setBusy(true); setMsg(null)
-    try {
-      const res = await authFetch('/api/admin/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email.trim() }) })
-      const d = await res.json().catch(() => ({}))
-      if (!res.ok) setMsg(d.error || `Failed (${res.status})`)
-      else { onDone() }
-    } finally { setBusy(false) }
-  }
-
-  return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'grid', placeItems: 'center', zIndex: 100 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: '#141416', border: `1px solid ${LINE}`, borderRadius: 12, padding: 24, width: 380, maxWidth: '90vw' }}>
-        <h2 style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 20, color: TEXT, margin: '0 0 6px' }}>Invite someone</h2>
-        <p style={{ color: TEXT2, fontSize: 13, margin: '0 0 16px' }}>They&apos;ll get an email with a magic link to sign in.</p>
-        <input value={email} onChange={e => setEmail(e.target.value)} type="email" placeholder="colleague@cfacbentonco.com"
-          style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: `1px solid ${LINE}`, borderRadius: 8, padding: '10px 12px', color: TEXT, fontSize: 14, marginBottom: 14 }} />
-        {msg && <div style={{ color: WARN, fontSize: 13, marginBottom: 12 }}>{msg}</div>}
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{ background: 'none', border: `1px solid ${LINE}`, color: TEXT2, borderRadius: 8, padding: '9px 14px', fontSize: 14, cursor: 'pointer' }}>Cancel</button>
-          <button onClick={send} disabled={busy || !email.trim()} style={{ background: GOLD, color: '#0D0D0F', border: 'none', borderRadius: 8, padding: '9px 16px', fontWeight: 600, fontSize: 14, cursor: busy ? 'not-allowed' : 'pointer' }}>{busy ? 'Sending…' : 'Send invite'}</button>
-        </div>
-      </div>
     </div>
   )
 }

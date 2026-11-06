@@ -47,10 +47,15 @@ describe('register route — allowlist is the only gate', () => {
     expect(mCreateClient).not.toHaveBeenCalled()
   })
 
-  it('refuses admin addresses (on or off domain) without touching Supabase', async () => {
-    expect((await post('melanie@cfacbentonco.com')).status).toBe(403)
+  it('refuses off-domain admin addresses without touching Supabase', async () => {
     expect((await post('jimmyleast@gmail.com')).status).toBe(403)
     expect(mCreateClient).not.toHaveBeenCalled()
+  })
+
+  it('lets an on-domain admin (Melanie) register', async () => {
+    const createUser = vi.fn().mockResolvedValue({ data: { user: { id: 'u-mel' } }, error: null })
+    mCreateClient.mockReturnValue({ auth: { admin: { createUser } } })
+    expect((await post('melanie@cfacbentonco.com')).status).toBe(200)
   })
 
   it('rejects a multi-@ address that tries to smuggle an allowed domain', async () => {
