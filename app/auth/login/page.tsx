@@ -19,7 +19,7 @@ const labelStyle: React.CSSProperties = {
 
 function friendlyError(msg: string): string {
   if (/invalid login credentials/i.test(msg)) return 'Incorrect email or password.'
-  if (/email not confirmed/i.test(msg)) return 'Your account isn’t confirmed yet. Use “Email Sign-In Link” above to finish signing in.'
+  if (/email not confirmed/i.test(msg)) return 'Your account isn’t confirmed yet. Use “Create Account” above with the same email to finish setting it up.'
   if (/user already registered/i.test(msg)) return 'An account with this email already exists. Try signing in instead.'
   if (/missing required environment variable/i.test(msg)) return msg
   if (/failed to fetch|network/i.test(msg)) return 'Could not reach the auth service. Verify the production environment and try again.'
@@ -96,29 +96,6 @@ export default function LoginPage() {
     setError('')
     setSuccess('')
     setPassword('')
-  }
-
-  async function handleResetPassword() {
-    if (!email.trim()) { setError('Enter your email address above, then click reset.'); return }
-    setError('')
-    setLoading(true)
-    try {
-      const response = await fetch('/api/auth/reset-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() }),
-      })
-      const payload = await response.json().catch(() => ({}))
-      if (!response.ok) {
-        setError(friendlyError(payload?.error || 'Unable to send reset email right now.'))
-        return
-      }
-      setSuccess('Password reset email sent — check your inbox.')
-    } catch {
-      setError('An unexpected error occurred. Please try again.')
-    } finally {
-      setLoading(false)
-    }
   }
 
   async function handleSignIn(e: React.FormEvent) {
@@ -294,18 +271,9 @@ export default function LoginPage() {
               >
                 {loading ? 'Signing in...' : 'Sign In'}
               </button>
-              <button
-                type="button"
-                onClick={handleResetPassword}
-                disabled={loading}
-                style={{
-                  background: 'transparent', border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
-                  color: '#555250', fontSize: 12, padding: 0, textAlign: 'center', width: '100%',
-                  fontFamily: 'var(--font-dm-sans), DM Sans, sans-serif',
-                }}
-              >
-                Forgot password?
-              </button>
+              <p style={{ color: '#555250', fontSize: 12, margin: 0, textAlign: 'center' }}>
+                Forgot your password? Ask a CFAC admin to reset it.
+              </p>
             </form>
           ) : (
             <form onSubmit={handleSignUp} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

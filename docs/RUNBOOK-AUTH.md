@@ -23,21 +23,23 @@ first sign-in) and the allowlist limit the blast radius; register new staff prom
 |---|---|
 | 500 "Server auth is not configured." | `SUPABASE_SERVICE_ROLE_KEY` missing |
 | 403 "isn't permitted to sign up" | address off-domain, or `ALLOWED_EMAIL_DOMAINS` misconfigured |
-| 409 "An account already exists" | confirmed account exists — use Sign In / Forgot password (or reset in Supabase → Authentication → Users) |
+| 409 "An account already exists" | confirmed account exists — use Sign In, or have an admin reset the password in Supabase → Authentication → Users |
 | 429 "Too many requests" | per-IP/global limiter (`lib/auth/ratelimit.ts`, 5 per IP / 60 global per 15 min, per instance) |
 
 Watch `app_events` for `auth.register.failed` (the `status` column carries the cause)
 and `auth.register.created` (audit trail for every account created).
 
-"Forgot password?" still sends email via Resend and will fail until a sender domain is
-verified in Resend; reset passwords from Supabase → Authentication → Users meanwhile.
+"Forgot password?" no longer exists — the app sends **no** self-service emails. Reset a
+password in Supabase → Authentication → Users → (user) → Send/Update password, or delete
+the user so they can re-register via Create Account. (Admin → People → Invite is the only
+remaining email feature and is admin-initiated.)
 
 ## Allowlist enforcement (server-side)
 
 The allowlist is enforced at three independent points — a non-allowed email cannot get
 a usable session even with valid credentials:
 
-1. `POST /api/auth/register` and `POST /api/auth/reset-password` — before any account or link is created.
+1. `POST /api/auth/register` — before any account is created.
 2. `POST /api/auth/login` — valid off-domain credentials are signed out and get a generic 401.
 3. `lib/auth/requestUser.ts` (`getRequestAuth`) — every authenticated API request; an
    off-domain session is treated as unauthenticated regardless of how it was created.

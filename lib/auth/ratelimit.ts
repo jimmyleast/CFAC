@@ -1,5 +1,5 @@
 // In-memory rate limiter for the unauthenticated auth-email endpoints
-// (register, reset-password). Same pattern as lib/hope/ratelimit.ts but with
+// (register). Same pattern as lib/hope/ratelimit.ts but with
 // its OWN buckets — never share state with the public Hope endpoint.
 // Per-IP limit AND a global ceiling per window; per server instance.
 
